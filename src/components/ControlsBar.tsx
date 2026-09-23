@@ -41,8 +41,7 @@ export function ControlsBar(props: ControlsBarProps) {
         </SelectControl>
       </Field>
 
-      {props.mode === 'test' && (
-        <Field label="Duração">
+      <Field label="Duração">
           <SelectControl
             aria-label="Duração"
             value={props.durationId}
@@ -57,21 +56,22 @@ export function ControlsBar(props: ControlsBarProps) {
             <option value="unlimited">Sem limite</option>
           </SelectControl>
         </Field>
-      )}
 
       {props.mode === 'test' && props.durationId === 'custom' && (
         <Field label="Segundos">
-          <SelectControl
+          <input
+            type="number"
+            className="text-input"
+            style={{ width: 90 }}
+            min={MIN_CUSTOM_SECONDS}
+            max={MAX_CUSTOM_SECONDS}
             aria-label="Segundos personalizados"
             value={props.customSeconds}
-            onChange={(e) => props.onCustomSecondsChange(Number(e.target.value))}
-          >
-            {buildCustomOptions(props.customSeconds).map((s) => (
-              <option key={s} value={s}>
-                {s}s
-              </option>
-            ))}
-          </SelectControl>
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              if (Number.isFinite(n)) props.onCustomSecondsChange(n)
+            }}
+          />
         </Field>
       )}
 
@@ -117,10 +117,3 @@ export function ControlsBar(props: ControlsBarProps) {
   )
 }
 
-/** Opções em torno do valor personalizado atual. */
-function buildCustomOptions(current: number): number[] {
-  const set = new Set<number>([15, 30, 45, 60, 90, 120, current])
-  set.add(Math.min(Math.max(current - 5, MIN_CUSTOM_SECONDS), MAX_CUSTOM_SECONDS))
-  set.add(current + 5)
-  return [...set].sort((a, b) => a - b)
-}

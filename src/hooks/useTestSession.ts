@@ -7,6 +7,7 @@ import type { ResultMetrics } from '../types/domain'
 import { playErrorSound, playKeySound, warmUpAudio } from '../services/audio'
 import { saveResult } from '../storage/resultsRepo'
 import { formatElapsed } from './useTimer'
+import { generateId } from '../utils/id'
 
 export interface KeystrokeResult {
   correct: boolean
@@ -74,8 +75,8 @@ export function useTestSession({ mode, text, duration, soundEnabled, soundVolume
       setFinishedMetrics(metrics)
       const textId = textIdRef.current
       if (textId) {
-        void saveResult({
-          id: `result-${crypto.randomUUID()}`,
+        saveResult({
+          id: generateId('result'),
           mode: modeRef.current,
           finishedAt: Date.now(),
           finishReason: reason,
@@ -85,7 +86,7 @@ export function useTestSession({ mode, text, duration, soundEnabled, soundVolume
           level: textRef.current?.level ?? 'basic',
           durationSeconds: durationRef.current,
           metrics,
-        })
+        }).catch((err) => console.error('Falha ao salvar o resultado no banco local:', err))
       }
     },
     [setSession],
@@ -177,12 +178,19 @@ export function useTestSession({ mode, text, duration, soundEnabled, soundVolume
     setSession(reduceTyping(sessionRef.current, { type: 'reset' }, performance.now()).session)
   }, [setSession])
 
-  const liveMetrics = useMemo(
-    () => computeMetrics(session, performance.now()),
+  const liveMetrics = useMemo(() => {
+    const metrics = computeMetrics(session, performance.now())
+    // Piso de 1s no display ao vivo: evita WPM absurdo nos primeiros caracteres.
+    // (Fórmula oficial e resultado final ficam intocados — ver computeMetrics.)
+    if (session.status === 'running') {
+      const elapsedMs = Math.max(metrics.elapsedMs, 1000)
+      const wpm = (metrics.charsCorrect / 5) / (elapsedMs / 60000)
+      return { ...metrics, wpm: Math.round(Math.min(wpm, metrics.wpm) * 10) / 10, elapsedMs }
+    }
+    return metrics
     // clockTick atualiza o tempo decorrido exibido em tempo real.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session, clockTick],
-  )
+  }, [session, clockTick])
   const clockMs =
     session.status === 'running' && session.startedAt != null
       ? performance.now() - session.startedAt

@@ -9,6 +9,7 @@ import { ResultCard } from '../components/ResultCard'
 import { AiGeneratePanel } from '../components/AiGeneratePanel'
 import { TextsManager } from '../components/TextsManager'
 import { SettingsDialog } from '../components/SettingsDialog'
+import { Dialog } from '../components/ui/Dialog'
 import { Button, Field, SelectControl } from '../components/ui/controls'
 import { IconFileText, IconKeyboard, IconSettings } from '../components/ui/Icons'
 import { levelLabel } from '../logic/levels'
@@ -38,8 +39,12 @@ export function PracticePage(props: PracticePageProps) {
   const [showAi, setShowAi] = useState(false)
 
   const allTexts = useMemo(() => buildAllTexts(userTexts.texts), [userTexts.texts])
+  // "user" inclui textos do usuário E gerados por IA (ambos vivem no IndexedDB).
   const availableTexts = useMemo(
-    () => (textFilter === 'all' ? allTexts : allTexts.filter((t) => t.source === textFilter)),
+    () =>
+      textFilter === 'all'
+        ? allTexts
+        : allTexts.filter((t) => (textFilter === 'user' ? t.source !== 'preset' : t.source === textFilter)),
     [allTexts, textFilter],
   )
   const levelTexts = useMemo(
@@ -85,6 +90,10 @@ export function PracticePage(props: PracticePageProps) {
       const target = e.target as HTMLElement | null
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
       if (e.key === 'Tab' || e.key === 'Escape') return
+      // Espaço fora de inputs não deve rolar a página (antes ou depois do teste).
+      if (e.key === ' ') {
+        e.preventDefault()
+      }
       keyHandlerRef.current(e)
     }
     window.addEventListener('keydown', onKeyDown)
@@ -124,8 +133,9 @@ export function PracticePage(props: PracticePageProps) {
       />
 
       <div className="controls-bar" style={{ marginBottom: 10 }}>
-        <Field label="Fonte do texto">
+        <Field label="Fonte do texto" htmlFor="text-source-filter">
           <SelectControl
+            id="text-source-filter"
             aria-label="Fonte do texto"
             value={textFilter}
             onChange={(e) => setTextFilter(e.target.value as typeof textFilter)}
@@ -242,44 +252,21 @@ export function PracticePage(props: PracticePageProps) {
         onGroqChange={props.onGroqChange}
       />
 
-      <AiGeneratePanelWrapper
-        open={showAi}
-        onClose={() => setShowAi(false)}
-        groqConfig={props.groqConfig}
-        level={level}
-        onUseText={(t) => {
-          setCurrentText(t)
-          session.reset()
-        }}
-        onOpenSettings={() => {
-          setShowAi(false)
-          setShowSettings(true)
-        }}
-      />
-    </div>
-  )
-}
-
-/** Envolve o painel de IA num diálogo para não poluir a tela principal. */
-function AiGeneratePanelWrapper(props: {
-  open: boolean
-  onClose: () => void
-  groqConfig: GroqConfig
-  level: LevelId
-  onUseText: (t: TextEntry) => void
-  onOpenSettings: () => void
-}) {
-  const { open, onClose, ...rest } = props
-  if (!open) return null
-  return (
-    <div className="dialog-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="dialog" role="dialog" aria-modal="true" aria-label="Gerar texto com IA">
-        <h2 className="dialog-title">Gerar texto com IA (Groq)</h2>
-        <AiGeneratePanel {...rest} />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-          <Button onClick={onClose}>Fechar</Button>
-        </div>
-      </div>
+      <Dialog open={showAi} onClose={() => setShowAi(false)} title="Gerar texto com IA (Groq)">
+        <AiGeneratePanel
+          groqConfig={props.groqConfig}
+          level={level}
+          onLevelChange={setLevel}
+          onUseText={(t) => {
+            setCurrentText(t)
+            session.reset()
+          }}
+          onOpenSettings={() => {
+            setShowAi(false)
+            setShowSettings(true)
+          }}
+        />
+      </Dialog>
     </div>
   )
 }

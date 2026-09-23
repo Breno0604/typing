@@ -22,7 +22,7 @@ export function useSettings() {
   const update = useCallback((patch: Partial<Settings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...patch }
-      void saveSettings(next)
+      saveSettings(next).catch((err) => console.error('Falha ao salvar configurações:', err))
       return next
     })
   }, [])
@@ -46,7 +46,7 @@ export function useGroqConfig() {
   const update = useCallback((patch: Partial<GroqConfig>) => {
     setConfig((prev) => {
       const next = { ...prev, ...patch }
-      void saveGroqConfig(next)
+      saveGroqConfig(next).catch((err) => console.error('Falha ao salvar configuração da IA:', err))
       return next
     })
   }, [])

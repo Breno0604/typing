@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { GroqConfig, LevelId, TextEntry } from '../types/domain'
 import { GroqError, generateTypingText } from '../services/groq'
 import { saveUserText } from '../storage/textsRepo'
+import { generateId } from '../utils/id'
 import { Button, Field, SelectControl } from './ui/controls'
 import { IconSparkles } from './ui/Icons'
 import { LEVELS } from '../logic/levels'
@@ -9,6 +10,7 @@ import { LEVELS } from '../logic/levels'
 interface AiGeneratePanelProps {
   groqConfig: GroqConfig
   level: LevelId
+  onLevelChange: (level: LevelId) => void
   onUseText: (entry: TextEntry) => void
   onOpenSettings: () => void
 }
@@ -30,7 +32,7 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
         topicHint: topic || undefined,
       })
       const entry: TextEntry = {
-        id: `ai-${crypto.randomUUID()}`,
+        id: generateId('ai'),
         title: 'Texto gerado por IA',
         content,
         level: props.level,
@@ -70,7 +72,11 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
           />
         </Field>
         <Field label="Nível" htmlFor="ai-level">
-          <SelectControl id="ai-level" value={props.level} disabled>
+          <SelectControl
+            id="ai-level"
+            value={props.level}
+            onChange={(e) => props.onLevelChange(e.target.value as LevelId)}
+          >
             {LEVELS.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.label}

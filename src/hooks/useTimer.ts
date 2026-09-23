@@ -1,31 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-
 /**
- * Cronômetro de alta precisão baseado em performance.now().
- * Atualiza ~10x/s; o valor exibido é derivado de timestamps reais,
- * nunca de somar intervalos.
+ * Formatadores de tempo usados no cronômetro e nos resultados.
+ * (O agendamento do cronômetro vive em useTestSession, baseado em
+ * performance.now() — timestamps reais, sem drift acumulado.)
  */
-export function useTimer(running: boolean, startedAt: number | null): number {
-  const [elapsedMs, setElapsedMs] = useState(0)
-  const frame = useRef<number | null>(null)
-
-  useEffect(() => {
-    if (!running || startedAt == null) {
-      setElapsedMs(0)
-      return
-    }
-    const tick = () => {
-      setElapsedMs(performance.now() - startedAt)
-      frame.current = requestAnimationFrame(tick)
-    }
-    frame.current = requestAnimationFrame(tick)
-    return () => {
-      if (frame.current != null) cancelAnimationFrame(frame.current)
-    }
-  }, [running, startedAt])
-
-  return elapsedMs
-}
 
 export function formatClock(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)

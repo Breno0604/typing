@@ -17,7 +17,7 @@ npm run typecheck  # apenas tsc --noEmit
 
 - **Modos**: Teste (mede desempenho, termina por tempo/texto) e Treino (sem limite de tempo, termina ao concluir o texto ou em "Finalizar").
 - **Início no primeiro caractere**: o cronômetro só começa quando o usuário digita; clique no texto não inicia nada.
-- **Duração**: 5/10/15/30/60/90/120/180s, Personalizado (livre, 1–3600s) e Sem limite.
+- **Duração**: 5/10/15/30/60/90/120/180s, Personalizado (valor livre informado, 1–3600s) e Sem limite.
 - **Níveis**: Iniciante, Básico, Intermediário, Avançado, Especialista — centralizados em `src/logic/levels.ts`; filtram os textos.
 - **Textos**:
   - Predefinidos por nível (`src/data/predefinedTexts.ts`, fáceis de expandir);
@@ -59,12 +59,12 @@ src/
 - **Máquina de estados única**: `idle → running → finished` (sem booleanos soltos).
 - **Camada de métricas pura** e testada; nenhum cálculo nos componentes.
 - **IndexedDB** (`typing-app`): stores `settings`, `texts`, `results`. Zero libs externas.
-- **Groq isolado** em serviço com erros tipados (sem chave, offline, 401/403, 429, servidor, resposta inválida) e sanitização da resposta (remove markdown/listas/emojis; texto corrido).
+- **Groq isolado** em serviço com erros tipados (sem chave, offline, 401/403, 429, servidor, resposta inválida), timeout de 30s e sanitização da resposta (remove markdown/listas/emojis; texto corrido).
 - **Zero dependências de runtime**: ícones e gráfico em SVG próprio, fontes do sistema.
 
 ## Testes
 
-`tests/metrics.test.ts` cobre: início no 1º caractere, erros permanentes após correção, backspace na posição 0, fim por tempo, fim por texto, reset, WPM (30 chars/15s = 24 WPM), precisão histórica, toque total/líquido, progresso de palavras/caracteres e comparação exata de acentos.
+`tests/metrics.test.ts` cobre: início no 1º caractere, erros permanentes após correção, backspace na posição 0, fim por tempo, fim por texto, reset, WPM (30 chars/15s = 24 WPM), precisão histórica, toque total/líquido, progresso de palavras/caracteres e comparação exata de acentos. `tests/groq.test.ts` cobre: sanitização da resposta da IA (markdown, listas, emojis, espaços, acentos), prompt por nível, extração de respostas válidas/inválidas, durações (clamp do personalizado, sem limite, padrão) e geração de IDs com fallback.
 
 ## Verificação manual (resumo do que foi validado no navegador)
 

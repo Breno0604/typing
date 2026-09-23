@@ -1,5 +1,6 @@
 import type { LevelId, TextEntry, TextSource } from '../types/domain'
 import { dbDelete, dbGetAll, dbPut, STORE_TEXTS } from './db'
+import { generateId } from '../utils/id'
 
 export async function getAllUserTexts(): Promise<TextEntry[]> {
   const all = await dbGetAll<TextEntry>(STORE_TEXTS)
@@ -20,7 +21,7 @@ export function createUserText(
   level: LevelId,
 ): TextEntry {
   return {
-    id: `user-${crypto.randomUUID()}`,
+    id: generateId('user'),
     title: title.trim(),
     content: content.normalize('NFC').trim(),
     level,

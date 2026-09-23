@@ -25,6 +25,8 @@ export class GroqError extends Error {
 }
 
 const API_URL = 'https://api.groq.com/openai/v1/chat/completions'
+/** Tempo máximo de espera pela resposta (rede que "pendura" não deve travar o painel). */
+const TIMEOUT_MS = 30_000
 
 const LEVEL_HINTS: Record<LevelId, string> = {
   beginner: 'frases curtas (6 a 10 palavras), palavras simples e familiares, sem pontuação além do ponto final',
@@ -97,21 +99,10 @@ export async function generateTypingText(params: GenerateTextParams): Promise<st
 
   let response: Response
   try {
-    response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.apiKey.trim()}`,
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          { role: 'system', content: buildPrompt(getLevel(level), topicHint) },
-          { role: 'user', content: 'Gere um novo texto para o teste de digitação.' },
-        ],
-        temperature: 0.9,
-        max_tokens: 400,
-      }),
+    response = await fetchWithTimeout({
+      model: config.model,
+      apiKey: config.apiKey.trim(),
+      prompt: buildPrompt(getLevel(level), topicHint),
       signal,
     })
   } catch (err) {
@@ -138,6 +129,41 @@ export async function generateTypingText(params: GenerateTextParams): Promise<st
     throw new GroqError('invalid-response', 'O texto gerado é curto demais para o teste. Tente novamente.')
   }
   return sanitized.slice(0, MAX_LENGTH)
+}
+
+/** Fetch com timeout: evita que uma rede sem resposta trave a geração indefinidamente. */
+async function fetchWithTimeout(args: {
+  model: string
+  apiKey: string
+  prompt: string
+  signal?: AbortSignal
+}): Promise<Response> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(new DOMException('Timeout', 'TimeoutError')), TIMEOUT_MS)
+  const onExternalAbort = () => controller.abort()
+  args.signal?.addEventListener('abort', onExternalAbort, { once: true })
+  try {
+    return await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${args.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: args.model,
+        messages: [
+          { role: 'system', content: args.prompt },
+          { role: 'user', content: 'Gere um novo texto para o teste de digitação.' },
+        ],
+        temperature: 0.9,
+        max_tokens: 400,
+      }),
+      signal: controller.signal,
+    })
+  } finally {
+    window.clearTimeout(timer)
+    args.signal?.removeEventListener('abort', onExternalAbort)
+  }
 }
 
 /** Extrai o conteúdo de uma resposta compatível com OpenAI. */

@@ -21,7 +21,6 @@ export function createSession(mode: SessionMode, text: string): TypingSession {
     grossKeystrokes: 0,
     errors: 0,
     corrections: 0,
-    lastKeyError: false,
   }
 }
 
@@ -36,9 +35,6 @@ export function reduceTyping(
       return reduceCharacter(state, event.codePoint, now)
     case 'backspace':
       return reduceBackspace(state, now)
-    case 'start':
-      // Explicitamente usado no treino sem texto digitado (não é o fluxo padrão).
-      return { session: state.status === 'idle' ? { ...state, status: 'running', startedAt: now } : state }
     case 'finish':
       return reduceFinish(state, event.reason, now)
     case 'reset':
@@ -71,7 +67,6 @@ function reduceCharacter(state: TypingSession, codePoint: number, now: number) {
   session.entries = new Map(state.entries)
   session.entries.set(state.position, correct ? 'correct' : 'incorrect')
   session.position = state.position + 1
-  session.lastKeyError = !correct
 
   return {
     session,
@@ -88,7 +83,6 @@ function reduceBackspace(state: TypingSession, now: number) {
     ...state,
     corrections: state.corrections + 1,
     position: state.position - 1,
-    lastKeyError: false,
   }
   return { session }
 }
@@ -100,7 +94,6 @@ function reduceFinish(state: TypingSession, reason: FinishReason, now: number) {
     status: 'finished',
     finishedAt: now,
     finishReason: reason,
-    lastKeyError: false,
   }
   return { session }
 }

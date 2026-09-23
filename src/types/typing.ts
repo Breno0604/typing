@@ -7,7 +7,6 @@ export type CharState = 'pending' | 'correct' | 'incorrect'
 export type TypingEvent =
   | { type: 'character'; codePoint: number }
   | { type: 'backspace' }
-  | { type: 'start' }
   | { type: 'finish'; reason: FinishReason }
   | { type: 'reset' }
 
@@ -31,6 +30,4 @@ export interface TypingSession {
   errors: number
   /** Usos do Backspace. */
   corrections: number
-  /** Última tecla produz erro? (para feedback sonoro) */
-  lastKeyError: boolean
 }
