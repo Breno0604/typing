@@ -119,14 +119,26 @@ export async function generateTypingText(params: GenerateTextParams): Promise<st
     throw new GroqError('invalid-response', 'A IA respondeu em um formato inesperado. Tente novamente.')
   }
 
-  const content = extractContent(data)
+  const { content, finishReason, hasReasoning } = extractContent(data)
+
   if (!content) {
+    // Modelos racionadores podem gastar todo o orçamento de tokens em raciocínio
+    // e não produzir texto. Erro distinto orienta o usuário a ajustar o modelo.
+    if (hasReasoning || finishReason === 'length') {
+      throw new GroqError(
+        'invalid-response',
+        `O modelo "${config.model}" gastou o limite de tokens sem produzir texto (modelo de raciocínio?). Escolha outro modelo nas configurações (ex.: llama-3.3-70b-versatile) e tente novamente.`,
+      )
+    }
     throw new GroqError('invalid-response', 'A IA não retornou um texto utilizável. Tente novamente.')
   }
 
   const sanitized = sanitizeGeneratedText(content)
   if (sanitized.length < MIN_LENGTH) {
-    throw new GroqError('invalid-response', 'O texto gerado é curto demais para o teste. Tente novamente.')
+    throw new GroqError(
+      'invalid-response',
+      `O texto gerado veio curto demais para o teste (${sanitized.length} caracteres). Tente novamente ou escolha outro modelo.`,
+    )
   }
   return sanitized.slice(0, MAX_LENGTH)
 }
@@ -156,7 +168,8 @@ async function fetchWithTimeout(args: {
           { role: 'user', content: 'Gere um novo texto para o teste de digitação.' },
         ],
         temperature: 0.9,
-        max_tokens: 400,
+        // Orçamento suficiente até para modelos com raciocínio.
+        max_completion_tokens: 2048,
       }),
       signal: controller.signal,
     })
@@ -166,12 +179,52 @@ async function fetchWithTimeout(args: {
   }
 }
 
-/** Extrai o conteúdo de uma resposta compatível com OpenAI. */
-export function extractContent(data: unknown): string | null {
-  if (typeof data !== 'object' || data === null) return null
+export interface ExtractedResponse {
+  /** Conteúdo utilizável, ou null se ausente/vazio. */
+  content: string | null
+  /** Motivo de término informado pela API ("stop", "length", …). */
+  finishReason: string | null
+  /** Indica se o modelo produziu campo de raciocínio sem conteúdo. */
+  hasReasoning: boolean
+}
+
+/**
+ * Extrai o conteúdo de uma resposta compatível com OpenAI.
+ * Tolerante a modelos racionadores: usa `reasoning` como fallback de texto
+ * quando o `content` vem vazio (alguns modelos despejam a resposta ali).
+ */
+export function extractContent(data: unknown): ExtractedResponse {
+  if (typeof data !== 'object' || data === null) {
+    return { content: null, finishReason: null, hasReasoning: false }
+  }
   const choices = (data as { choices?: unknown }).choices
-  if (!Array.isArray(choices) || choices.length === 0) return null
-  const message = (choices[0] as { message?: { content?: unknown } }).message
-  const content = message?.content
-  return typeof content === 'string' ? content : null
+  if (!Array.isArray(choices) || choices.length === 0) {
+    return { content: null, finishReason: null, hasReasoning: false }
+  }
+  const choice = choices[0] as {
+    message?: { content?: unknown; reasoning?: unknown }
+    finish_reason?: unknown
+  }
+  const rawContent = choice.message?.content
+  const content = typeof rawContent === 'string' && rawContent.trim() ? rawContent : null
+  if (content) {
+    return {
+      content,
+      finishReason: typeof choice.finish_reason === 'string' ? choice.finish_reason : null,
+      hasReasoning: false,
+    }
+  }
+  const reasoning = choice.message?.reasoning
+  if (typeof reasoning === 'string' && reasoning.trim()) {
+    return {
+      content: reasoning,
+      finishReason: typeof choice.finish_reason === 'string' ? choice.finish_reason : null,
+      hasReasoning: true,
+    }
+  }
+  return {
+    content: null,
+    finishReason: typeof choice.finish_reason === 'string' ? choice.finish_reason : null,
+    hasReasoning: true,
+  }
 }

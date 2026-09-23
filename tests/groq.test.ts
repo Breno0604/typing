@@ -43,15 +43,43 @@ describe('buildPrompt', () => {
 describe('extractContent', () => {
   it('extrai conteúdo de resposta compatível com OpenAI', () => {
     const data = { choices: [{ message: { content: 'Texto válido.' } }] }
-    expect(extractContent(data)).toBe('Texto válido.')
+    expect(extractContent(data)).toEqual({ content: 'Texto válido.', finishReason: null, hasReasoning: false })
   })
 
-  it('retorna null para respostas vazias ou malformadas', () => {
-    expect(extractContent(null)).toBeNull()
-    expect(extractContent({})).toBeNull()
-    expect(extractContent({ choices: [] })).toBeNull()
-    expect(extractContent({ choices: [{ message: {} }] })).toBeNull()
-    expect(extractContent({ choices: [{ message: { content: 42 } }] })).toBeNull()
+  it('expõe o finish_reason quando presente', () => {
+    const data = { choices: [{ finish_reason: 'length', message: { content: 'parcial' } }] }
+    expect(extractContent(data).finishReason).toBe('length')
+  })
+
+  it('usa o campo reasoning como fallback quando content vem vazio', () => {
+    const data = { choices: [{ message: { content: '', reasoning: 'texto despejado no raciocínio' } }] }
+    const r = extractContent(data)
+    expect(r.content).toBe('texto despejado no raciocínio')
+    expect(r.hasReasoning).toBe(true)
+  })
+
+  it('sinaliza hasReasoning no fallback e finish_reason preservado', () => {
+    const data = { choices: [{ finish_reason: 'length', message: { reasoning: 'pensou e escreveu no reasoning' } }] }
+    const r = extractContent(data)
+    expect(r.content).toBe('pensou e escreveu no reasoning')
+    expect(r.hasReasoning).toBe(true)
+    expect(r.finishReason).toBe('length')
+  })
+
+  it('sinaliza modelo racionador sem conteúdo nem reasoning', () => {
+    const data = { choices: [{ finish_reason: 'length', message: { reasoning: '' } }] }
+    const r = extractContent(data)
+    expect(r.content).toBeNull()
+    expect(r.hasReasoning).toBe(true)
+    expect(r.finishReason).toBe('length')
+  })
+
+  it('retorna vazio para respostas malformadas', () => {
+    expect(extractContent(null).content).toBeNull()
+    expect(extractContent({}).content).toBeNull()
+    expect(extractContent({ choices: [] }).content).toBeNull()
+    expect(extractContent({ choices: [{ message: {} }] }).content).toBeNull()
+    expect(extractContent({ choices: [{ message: { content: 42 } }] }).content).toBeNull()
   })
 })
 
