@@ -11,7 +11,7 @@
   --text-faint: #5e6a94;
   --accent: #4f7cff;
   --accent-strong: #6f96ff;
-  --correct: #3ecf74;
+  --correct: #00c853;
   --error: #ef4e64;
   --error-bg: rgba(239, 78, 100, 0.28);
   --btn-bg: #1c2647;
@@ -32,7 +32,7 @@
   --text-faint: #76829f;
   --accent: #3556c8;
   --accent-strong: #2b48a8;
-  --correct: #1e9e54;
+  --correct: #007d38;
   --error: #c92a42;
   --error-bg: rgba(201, 42, 66, 0.25);
   --btn-bg: #f2f4fa;
