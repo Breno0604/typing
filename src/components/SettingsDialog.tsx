@@ -93,6 +93,50 @@ export function SettingsDialog(props: {
             ))}
           </div>
         </div>
+        <div className="form-row">
+          <span id="caret-label">Cor da letra a digitar</span>
+          <div role="group" aria-labelledby="caret-label" style={{ display: 'flex', gap: 8 }}>
+            {ACCENTS.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                aria-label={`Cor da letra a digitar: ${a.label}`}
+                aria-pressed={s.caretColor === a.id}
+                onClick={() => props.onChange({ caretColor: a.id })}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: '50%',
+                  background: a.color,
+                  border: s.caretColor === a.id ? '3px solid var(--text)' : '2px solid transparent',
+                  cursor: 'pointer',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="form-row">
+          <span id="caret-underline-label">Cor do sublinhado</span>
+          <div role="group" aria-labelledby="caret-underline-label" style={{ display: 'flex', gap: 8 }}>
+            {ACCENTS.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                aria-label={`Cor do sublinhado: ${a.label}`}
+                aria-pressed={s.caretUnderlineColor === a.id}
+                onClick={() => props.onChange({ caretUnderlineColor: a.id })}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: '50%',
+                  background: a.color,
+                  border: s.caretUnderlineColor === a.id ? '3px solid var(--text)' : '2px solid transparent',
+                  cursor: 'pointer',
+                }}
+              />
+            ))}
+          </div>
+        </div>
       </fieldset>
 
       <fieldset className="dialog-section">

@@ -6,6 +6,8 @@ export const DEFAULT_SETTINGS: Settings = {
   uiFontSize: 'medium',
   typingFontSize: 'medium',
   accentColor: 'blue',
+  caretColor: 'blue',
+  caretUnderlineColor: 'blue',
   soundEnabled: true,
   soundVolume: 0.5,
   defaultDuration: '30',

@@ -35,6 +35,9 @@ export default function App() {
         // Cor do destaque configurável aplicada como token.
         ['--accent' as string]: ACCENT_COLORS[settings.accentColor],
         ['--accent-strong' as string]: ACCENT_COLORS[settings.accentColor],
+        // Cores do caractere atual (letra + sublinhado) configuráveis.
+        ['--caret-color' as string]: ACCENT_COLORS[settings.caretColor],
+        ['--caret-underline' as string]: ACCENT_COLORS[settings.caretUnderlineColor],
         fontSize: settings.uiFontSize === 'small' ? '14px' : settings.uiFontSize === 'large' ? '17px' : undefined,
       }}
     >

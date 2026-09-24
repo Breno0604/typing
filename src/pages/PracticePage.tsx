@@ -3,7 +3,6 @@ import type { DurationId, LevelId, SessionMode, TextEntry } from '../types/domai
 import { durationSeconds } from '../logic/durations'
 import { buildAllTexts } from '../storage/seed'
 import { useTestSession } from '../hooks/useTestSession'
-import { ControlsBar } from '../components/ControlsBar'
 import { TypingArea } from '../components/TypingArea'
 import { ResultCard } from '../components/ResultCard'
 import { AiGeneratePanel } from '../components/AiGeneratePanel'
@@ -11,8 +10,9 @@ import { TextsManager } from '../components/TextsManager'
 import { SettingsDialog } from '../components/SettingsDialog'
 import { Dialog } from '../components/ui/Dialog'
 import { Button, Field, SelectControl } from '../components/ui/controls'
-import { IconFileText, IconKeyboard, IconSettings } from '../components/ui/Icons'
+import { IconFileText, IconSettings } from '../components/ui/Icons'
 import { levelLabel } from '../logic/levels'
+import { formatClock } from '../hooks/useTimer'
 import type { GroqConfig, Settings } from '../types/domain'
 import { useUserTexts } from '../hooks/useUserTexts'
 
@@ -33,6 +33,8 @@ export function PracticePage(props: PracticePageProps) {
   const [customSeconds, setCustomSeconds] = useState(settings.defaultCustomDuration)
   const [level, setLevel] = useState<LevelId>(settings.defaultLevel)
   const [textFilter, setTextFilter] = useState<'all' | 'preset' | 'user'>('all')
+  /** Fase da experiência: configuração ou digitação. */
+  const [phase, setPhase] = useState<'setup' | 'typing'>('setup')
 
   const [showSettings, setShowSettings] = useState(false)
   const [showTexts, setShowTexts] = useState(false)
@@ -79,11 +81,12 @@ export function PracticePage(props: PracticePageProps) {
     soundVolume: settings.soundVolume,
   })
 
-  // Captura global de teclado na página de prática.
+  // Captura global de teclado na tela de digitação.
   const keyHandlerRef = useRef(session.handleKeyDown)
   keyHandlerRef.current = session.handleKeyDown
 
   useEffect(() => {
+    if (phase !== 'typing') return
     const onKeyDown = (e: KeyboardEvent) => {
       // Não capturar enquanto um diálogo estiver aberto.
       if (document.querySelector('.dialog-overlay')) return
@@ -98,7 +101,7 @@ export function PracticePage(props: PracticePageProps) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [phase])
 
   const newTest = () => {
     const pool = levelTexts.length > 0 ? levelTexts : availableTexts
@@ -109,125 +112,228 @@ export function PracticePage(props: PracticePageProps) {
     session.reset()
   }
 
+  const startTyping = () => {
+    session.reset()
+    setPhase('typing')
+  }
+
+  const backToSetup = () => {
+    session.reset()
+    setPhase('setup')
+  }
+
   const FONT_SCALE = { small: 0.85, medium: 1, large: 1.2 } as const
   const typingFontSize = 26 * FONT_SCALE[settings.typingFontSize]
 
+  const sourceLabel = (id: TextEntry['source']) =>
+    id === 'preset' ? 'Predefinidos' : id === 'ai' ? 'IA' : 'Meus textos'
+
   return (
     <div style={{ '--typing-font-size': `${typingFontSize}px` } as React.CSSProperties}>
-      <ControlsBar
-        mode={mode}
-        onModeChange={setMode}
-        durationId={durationId}
-        onDurationChange={setDurationId}
-        customSeconds={customSeconds}
-        onCustomSecondsChange={setCustomSeconds}
-        level={level}
-        onLevelChange={setLevel}
-        clockMs={session.clockMs}
-        duration={duration}
-        soundEnabled={settings.soundEnabled}
-        onToggleSound={() => props.onSettingsChange({ soundEnabled: !settings.soundEnabled })}
-        theme={settings.theme}
-        onToggleTheme={() => props.onSettingsChange({ theme: settings.theme === 'dark' ? 'light' : 'dark' })}
-        finished={session.finished}
-      />
+      {phase === 'setup' ? (
+        /* ================= Tela de configuração ================= */
+        <section className="setup-card" aria-label="Configuração do teste">
+          <h2 className="setup-title">Configurar teste</h2>
 
-      <div className="controls-bar" style={{ marginBottom: 10 }}>
-        <Field label="Fonte do texto" htmlFor="text-source-filter">
-          <SelectControl
-            id="text-source-filter"
-            aria-label="Fonte do texto"
-            value={textFilter}
-            onChange={(e) => setTextFilter(e.target.value as typeof textFilter)}
-          >
-            <option value="all">Todas</option>
-            <option value="preset">Predefinidos</option>
-            <option value="user">Meus textos / IA</option>
-          </SelectControl>
-        </Field>
-        <span className="ai-badge" title={currentText?.title}>
-          {currentText ? `${currentText.title} · ${levelLabel(currentText.level)}` : 'Nenhum texto disponível'}
-        </span>
-        {currentText?.generatedByAi && (
-          <span className="ai-badge">
-            <IconKeyboard size={13} /> Gerado por IA
-          </span>
-        )}
-        <div className="controls-spacer" />
-        <Button className="btn-icon" aria-label="Meus textos" title="Meus textos" onClick={() => setShowTexts(true)}>
-          <IconFileText />
-        </Button>
-        <Button className="btn-icon" aria-label="Gerar com IA" title="Gerar com IA" onClick={() => setShowAi(true)}>
-          ✦
-        </Button>
-        <Button className="btn-icon" aria-label="Configurações" title="Configurações" onClick={() => setShowSettings(true)}>
-          <IconSettings />
-        </Button>
-      </div>
+          <div className="controls-bar">
+            <Field label="Modo">
+              <SelectControl
+                aria-label="Modo"
+                value={mode}
+                onChange={(e) => setMode(e.target.value as SessionMode)}
+              >
+                <option value="test">Teste</option>
+                <option value="practice">Treino</option>
+              </SelectControl>
+            </Field>
 
-      <div className="typing-card">
-        {session.finished && session.finishedMetrics ? (
-          <ResultCard
-            metrics={session.finishedMetrics}
-            finishReason={session.session.finishReason ?? 'manual'}
-            onNewTest={newTest}
-            onRetry={session.reset}
-          />
-        ) : (
-          <>
-            <TypingArea session={session.session} active={!session.finished} />
-            <div className="typing-hint">
-              {session.idle
-                ? 'Digite o primeiro caractere para iniciar…'
-                : mode === 'practice'
-                  ? 'Modo treino — sem limite de tempo. Clique em Finalizar para encerrar.'
-                  : null}
-              {duration != null && <span>Limite: {duration}s</span>}
-            </div>
-          </>
-        )}
-      </div>
-
-      {!session.finished && (
-        <>
-          <div className="progress-row" aria-live="off">
-            <span>
-              Palavras <strong>{session.liveMetrics.wordsCompleted}/{session.liveMetrics.wordsTotal}</strong>
-            </span>
-            <span>
-              Caracteres <strong>{session.liveMetrics.charsCorrect}/{session.liveMetrics.charsTotal}</strong>
-            </span>
-            <span>
-              Erros <strong>{session.liveMetrics.errors}</strong>
-            </span>
-            <span>
-              WPM <strong>{session.liveMetrics.wpm.toLocaleString('pt-BR')}</strong>
-            </span>
-          </div>
-          <div className="progress-bar" aria-hidden>
-            <div
-              className="progress-bar-fill"
-              style={{ width: `${Math.min((session.liveMetrics.charsCorrect / Math.max(session.liveMetrics.charsTotal, 1)) * 100, 100)}%` }}
-            />
-          </div>
-          <div className="actions-row">
-            <Button variant="primary" onClick={newTest}>
-              Novo teste
-            </Button>
-            <Button onClick={session.reset}>Reiniciar teste</Button>
-            {(mode === 'practice' || duration == null) && (
-              <Button onClick={session.finishManually} disabled={!session.running}>
-                Finalizar
-              </Button>
+            {mode === 'test' && (
+              <Field label="Duração">
+                <SelectControl
+                  aria-label="Duração"
+                  value={durationId}
+                  onChange={(e) => setDurationId(e.target.value as DurationId)}
+                >
+                  <option value="5">5s</option>
+                  <option value="10">10s</option>
+                  <option value="15">15s</option>
+                  <option value="30">30s</option>
+                  <option value="60">60s</option>
+                  <option value="90">90s</option>
+                  <option value="120">2min</option>
+                  <option value="180">3min</option>
+                  <option value="custom">Personalizado</option>
+                  <option value="unlimited">Sem limite</option>
+                </SelectControl>
+              </Field>
             )}
+
+            {mode === 'test' && durationId === 'custom' && (
+              <Field label="Segundos">
+                <input
+                  type="number"
+                  className="text-input"
+                  style={{ width: 90 }}
+                  min={1}
+                  max={3600}
+                  aria-label="Segundos personalizados"
+                  value={customSeconds}
+                  onChange={(e) => {
+                    const n = Number(e.target.value)
+                    if (Number.isFinite(n) && n >= 1) setCustomSeconds(n)
+                  }}
+                />
+              </Field>
+            )}
+
+            <Field label="Nível">
+              <SelectControl
+                aria-label="Nível"
+                value={level}
+                onChange={(e) => setLevel(e.target.value as LevelId)}
+              >
+                {['beginner', 'basic', 'intermediate', 'advanced', 'expert'].map((l) => (
+                  <option key={l} value={l}>
+                    {levelLabel(l as LevelId)}
+                  </option>
+                ))}
+              </SelectControl>
+            </Field>
+
+            <Field label="Fonte do texto" htmlFor="setup-text-source">
+              <SelectControl
+                id="setup-text-source"
+                aria-label="Fonte do texto"
+                value={textFilter}
+                onChange={(e) => setTextFilter(e.target.value as typeof textFilter)}
+              >
+                <option value="all">Todas</option>
+                <option value="preset">Predefinidos</option>
+                <option value="user">Meus textos / IA</option>
+              </SelectControl>
+            </Field>
+
+            <Field label="Som">
+              <SelectControl
+                aria-label="Sons de tecla"
+                value={settings.soundEnabled ? 'on' : 'off'}
+                onChange={(e) => props.onSettingsChange({ soundEnabled: e.target.value === 'on' })}
+              >
+                <option value="on">Ativado</option>
+                <option value="off">Desativado</option>
+              </SelectControl>
+            </Field>
+
+            <Field label="Tema">
+              <SelectControl
+                aria-label="Tema"
+                value={settings.theme}
+                onChange={(e) => props.onSettingsChange({ theme: e.target.value as Settings['theme'] })}
+              >
+                <option value="dark">Escuro</option>
+                <option value="light">Claro</option>
+              </SelectControl>
+            </Field>
+
+            <div className="controls-spacer" />
+
+            <Button className="btn-icon" aria-label="Meus textos" title="Meus textos" onClick={() => setShowTexts(true)}>
+              <IconFileText />
+            </Button>
+            <Button className="btn-icon" aria-label="Gerar com IA" title="Gerar com IA" onClick={() => setShowAi(true)}>
+              ✦
+            </Button>
+            <Button
+              className="btn-icon"
+              aria-label="Configurações"
+              title="Configurações"
+              onClick={() => setShowSettings(true)}
+            >
+              <IconSettings />
+            </Button>
           </div>
-        </>
+
+          {currentText && (
+            <div className="setup-preview">
+              <span className="setup-preview-label">
+                Texto selecionado — {sourceLabel(currentText.source)} · {levelLabel(currentText.level)}
+              </span>
+              <p className="setup-preview-text">
+                {currentText.content.length > 220
+                  ? `${currentText.content.slice(0, 220)}…`
+                  : currentText.content}
+              </p>
+            </div>
+          )}
+
+          <div className="actions-row" style={{ marginTop: 24 }}>
+            <Button variant="primary" onClick={startTyping} disabled={!currentText}>
+              Começar
+            </Button>
+            <Button onClick={newTest} disabled={!currentText}>
+              Sortear outro texto
+            </Button>
+          </div>
+
+          <div style={{ marginTop: 18, textAlign: 'center' }}>
+            <Button onClick={props.onOpenStats}>Ver estatísticas de evolução</Button>
+          </div>
+        </section>
+      ) : (
+        /* ================= Tela de digitação (minimalista) ================= */
+        <section aria-label="Digitação">
+          {session.finished && session.finishedMetrics ? (
+            /* Resultado: tela completa com estatísticas. */
+            <>
+              <div className="typing-card">
+                <ResultCard
+                  metrics={session.finishedMetrics}
+                  finishReason={session.session.finishReason ?? 'manual'}
+                  onNewTest={newTest}
+                  onRetry={session.reset}
+                />
+              </div>
+              <div className="actions-row">
+                <Button onClick={backToSetup}>Configurar novo teste</Button>
+              </div>
+            </>
+          ) : (
+            /* Digitação: apenas relógio e texto. */
+            <>
+              <div className="typing-top">
+                {duration != null && (
+                  <div className="timer" role="timer" aria-live="off" data-warn={duration * 1000 - session.clockMs <= 5000}>
+                    {formatClock(Math.max(duration * 1000 - session.clockMs, 0))}
+                  </div>
+                )}
+                {mode === 'practice' && (
+                  <div className="timer" role="timer" aria-live="off">
+                    {formatClock(session.clockMs)}
+                  </div>
+                )}
+              </div>
+
+              <div className="typing-card">
+                <TypingArea session={session.session} active={!session.finished} />
+              </div>
+
+              <div className="actions-row">
+                <Button onClick={newTest} aria-keyshortcuts="Escape">
+                  Reiniciar
+                </Button>
+                {(mode === 'practice' || duration == null) && (
+                  <Button onClick={session.finishManually} disabled={!session.running}>
+                    Finalizar
+                  </Button>
+                )}
+                <Button onClick={backToSetup}>Configurar</Button>
+              </div>
+            </>
+          )}
+        </section>
       )}
 
-      <div style={{ marginTop: 20, textAlign: 'center' }}>
-        <Button onClick={props.onOpenStats}>Ver estatísticas de evolução</Button>
-      </div>
-
+      {/* ================= Diálogos (compartilhados) ================= */}
       <TextsManager
         open={showTexts}
         onClose={() => setShowTexts(false)}

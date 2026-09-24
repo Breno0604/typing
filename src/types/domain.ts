@@ -49,8 +49,12 @@ export interface Settings {
   uiFontSize: FontSizeId
   /** Tamanho do texto exibido na área de digitação. */
   typingFontSize: FontSizeId
-  /** Cor do destaque de digitação (caractere atual/acertos). */
+  /** Cor do destaque de digitação (botoes, barras de progresso). */
   accentColor: AccentColorId
+  /** Cor da letra a ser digitada (caractere atual). */
+  caretColor: AccentColorId
+  /** Cor do sublinhado do caractere atual. */
+  caretUnderlineColor: AccentColorId
   soundEnabled: boolean
   soundVolume: number // 0..1
   defaultDuration: DurationId
