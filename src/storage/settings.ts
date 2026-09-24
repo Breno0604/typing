@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: Settings = {
   accentColor: 'blue',
   caretColor: 'blue',
   caretUnderlineColor: 'blue',
+  lightTypingCardBg: 'white',
   soundEnabled: true,
   soundVolume: 0.5,
   defaultDuration: '30',

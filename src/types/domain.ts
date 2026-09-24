@@ -30,6 +30,9 @@ export type FontSizeId = 'small' | 'medium' | 'large'
 
 export type AccentColorId = 'blue' | 'green' | 'purple' | 'orange' | 'pink'
 
+/** Cor de fundo do card de digitação no tema claro. */
+export type LightCardBgId = 'white' | 'default' | 'soft' | 'cream' | 'mint'
+
 /** Texto usado numa sessão (predefinido, gerado por IA ou do usuário). */
 export interface TextEntry {
   id: string
@@ -55,6 +58,8 @@ export interface Settings {
   caretColor: AccentColorId
   /** Cor do sublinhado do caractere atual. */
   caretUnderlineColor: AccentColorId
+  /** Fundo do card de digitação (aplicado somente no tema claro). */
+  lightTypingCardBg: LightCardBgId
   soundEnabled: boolean
   soundVolume: number // 0..1
   defaultDuration: DurationId

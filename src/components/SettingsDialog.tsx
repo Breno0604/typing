@@ -1,4 +1,4 @@
-import type { AccentColorId, FontSizeId, Settings } from '../types/domain'
+import type { AccentColorId, FontSizeId, LightCardBgId, Settings } from '../types/domain'
 import type { GroqConfig } from '../types/domain'
 import { DURATIONS, durationLabel } from '../logic/durations'
 import { LEVELS } from '../logic/levels'
@@ -17,6 +17,14 @@ const FONT_SIZES: { id: FontSizeId; label: string }[] = [
   { id: 'small', label: 'Pequena' },
   { id: 'medium', label: 'Média' },
   { id: 'large', label: 'Grande' },
+]
+
+const LIGHT_CARD_BGS: { id: LightCardBgId; label: string; color: string }[] = [
+  { id: 'white', label: 'Branco', color: '#ffffff' },
+  { id: 'default', label: 'Padrão', color: '#dde3f0' },
+  { id: 'soft', label: 'Suave', color: '#eef2f9' },
+  { id: 'cream', label: 'Creme', color: '#fbf7ec' },
+  { id: 'mint', label: 'Menta', color: '#eaf7ef' },
 ]
 
 export function SettingsDialog(props: {
@@ -137,6 +145,33 @@ export function SettingsDialog(props: {
             ))}
           </div>
         </div>
+        <div className="form-row">
+          <span id="card-bg-label">Fundo do card de digitação</span>
+          <div role="group" aria-labelledby="card-bg-label" style={{ display: 'flex', gap: 8 }}>
+            {LIGHT_CARD_BGS.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                aria-label={`Fundo do card: ${a.label}`}
+                aria-pressed={s.lightTypingCardBg === a.id}
+                onClick={() => props.onChange({ lightTypingCardBg: a.id })}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: '50%',
+                  background: a.color,
+                  border:
+                    s.lightTypingCardBg === a.id ? '3px solid var(--text)' : '2px solid var(--btn-border)',
+                  cursor: 'pointer',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+        <p className="form-help">
+          O fundo do card de digitação é aplicado no tema claro (padrão: branco). No tema escuro, o
+          fundo permanece o padrão. Todas as opções mantêm bom contraste com o texto.
+        </p>
       </fieldset>
 
       <fieldset className="dialog-section">

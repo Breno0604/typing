@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ThemeId } from './types/domain'
+import type { LightCardBgId, ThemeId } from './types/domain'
 import { useGroqConfig, useSettings } from './hooks/useSettings'
 import { PracticePage } from './pages/PracticePage'
 import { StatsPage } from './pages/StatsPage'
@@ -13,6 +13,15 @@ const ACCENT_COLORS = {
   purple: '#9a6bff',
   orange: '#ff9f43',
   pink: '#ff6b9d',
+} as const
+
+/** Fundos do card de digitação no tema claro (configuráveis). */
+const LIGHT_CARD_BGS: Record<LightCardBgId, string> = {
+  white: '#ffffff',
+  default: '#dde3f0',
+  soft: '#eef2f9',
+  cream: '#fbf7ec',
+  mint: '#eaf7ef',
 } as const
 
 export default function App() {
@@ -38,6 +47,10 @@ export default function App() {
         // Cores do caractere atual (letra + sublinhado) configuráveis.
         ['--caret-color' as string]: ACCENT_COLORS[settings.caretColor],
         ['--caret-underline' as string]: ACCENT_COLORS[settings.caretUnderlineColor],
+        // Fundo do card de digitação (configurável; efeito visual apenas no tema claro).
+        ...(settings.theme === 'light'
+          ? { ['--typing-card-bg' as string]: LIGHT_CARD_BGS[settings.lightTypingCardBg] }
+          : {}),
         fontSize: settings.uiFontSize === 'small' ? '14px' : settings.uiFontSize === 'large' ? '17px' : undefined,
       }}
     >
