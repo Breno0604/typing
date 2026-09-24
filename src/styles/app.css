@@ -240,9 +240,13 @@ textarea {
   border-radius: 3px;
   padding: 1px 0.5px;
   position: relative;
+  /* Destaque em negrito em todos os estados (pendente/correto/incorreto/atual).
+     Fontes monoespaçadas mantêm a mesma largura no negrito, sem deslocar o texto. */
+  font-weight: 700;
   /* Borda sempre presente (transparente) para não haver deslocamento de layout;
-     a transição de cor cria o movimento suave do sublinhado entre caracteres. */
-  border-bottom: 2px solid transparent;
+     a transição de cor cria o movimento suave do sublinhado entre caracteres.
+     Espessura maior acompanha o negrito. */
+  border-bottom: 3px solid transparent;
   transition: color 0.12s ease, border-bottom-color 0.12s ease;
 }
 
