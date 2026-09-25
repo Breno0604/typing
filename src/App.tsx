@@ -10,7 +10,7 @@ type Page = 'practice' | 'stats'
 const ACCENT_COLORS = {
   blue: '#4f7cff',
   green: '#3ecf74',
-  purple: '#9a6bff',
+  slate: '#64748b',
   orange: '#ff9f43',
   pink: '#ff6b9d',
 } as const

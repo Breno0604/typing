@@ -28,7 +28,7 @@ export type ThemeId = 'dark' | 'light'
 
 export type FontSizeId = 'small' | 'medium' | 'large'
 
-export type AccentColorId = 'blue' | 'green' | 'purple' | 'orange' | 'pink'
+export type AccentColorId = 'blue' | 'green' | 'slate' | 'orange' | 'pink'
 
 /** Cor de fundo do card de digitação no tema claro. */
 export type LightCardBgId = 'white' | 'default' | 'soft' | 'cream' | 'mint'

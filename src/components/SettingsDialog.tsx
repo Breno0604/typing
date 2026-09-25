@@ -8,7 +8,7 @@ import { SelectControl, Switch } from './ui/controls'
 const ACCENTS: { id: AccentColorId; label: string; color: string }[] = [
   { id: 'blue', label: 'Azul', color: '#4f7cff' },
   { id: 'green', label: 'Verde', color: '#3ecf74' },
-  { id: 'purple', label: 'Roxo', color: '#9a6bff' },
+  { id: 'slate', label: 'Grafite', color: '#64748b' },
   { id: 'orange', label: 'Laranja', color: '#ff9f43' },
   { id: 'pink', label: 'Rosa', color: '#ff6b9d' },
 ]
