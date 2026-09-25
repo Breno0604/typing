@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DurationId, LevelId, SessionMode, TextEntry } from '../types/domain'
-import { durationSeconds } from '../logic/durations'
+import { DURATIONS, durationSeconds, MAX_CUSTOM_SECONDS, MIN_CUSTOM_SECONDS } from '../logic/durations'
 import { buildAllTexts } from '../storage/seed'
 import { useTestSession } from '../hooks/useTestSession'
 import { TypingArea } from '../components/TypingArea'
@@ -11,7 +11,7 @@ import { SettingsDialog } from '../components/SettingsDialog'
 import { Dialog } from '../components/ui/Dialog'
 import { Button, Field, SelectControl } from '../components/ui/controls'
 import { IconFileText, IconSettings } from '../components/ui/Icons'
-import { levelLabel } from '../logic/levels'
+import { LEVEL_IDS, levelLabel } from '../logic/levels'
 import { formatClock } from '../hooks/useTimer'
 import type { GroqConfig, Settings } from '../types/domain'
 import { useUserTexts } from '../hooks/useUserTexts'
@@ -154,14 +154,11 @@ export function PracticePage(props: PracticePageProps) {
                   value={durationId}
                   onChange={(e) => setDurationId(e.target.value as DurationId)}
                 >
-                  <option value="5">5s</option>
-                  <option value="10">10s</option>
-                  <option value="15">15s</option>
-                  <option value="30">30s</option>
-                  <option value="60">60s</option>
-                  <option value="90">90s</option>
-                  <option value="120">2min</option>
-                  <option value="180">3min</option>
+                  {DURATIONS.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.seconds < 60 || d.seconds % 60 !== 0 ? `${d.seconds}s` : `${d.seconds / 60}min`}
+                    </option>
+                  ))}
                   <option value="custom">Personalizado</option>
                   <option value="unlimited">Sem limite</option>
                 </SelectControl>
@@ -174,8 +171,8 @@ export function PracticePage(props: PracticePageProps) {
                   type="number"
                   className="text-input"
                   style={{ width: 90 }}
-                  min={1}
-                  max={3600}
+                  min={MIN_CUSTOM_SECONDS}
+                  max={MAX_CUSTOM_SECONDS}
                   aria-label="Segundos personalizados"
                   value={customSeconds}
                   onChange={(e) => {
@@ -192,9 +189,9 @@ export function PracticePage(props: PracticePageProps) {
                 value={level}
                 onChange={(e) => setLevel(e.target.value as LevelId)}
               >
-                {['beginner', 'basic', 'intermediate', 'advanced', 'expert'].map((l) => (
+                {LEVEL_IDS.map((l) => (
                   <option key={l} value={l}>
-                    {levelLabel(l as LevelId)}
+                    {levelLabel(l)}
                   </option>
                 ))}
               </SelectControl>
@@ -318,9 +315,7 @@ export function PracticePage(props: PracticePageProps) {
               </div>
 
               <div className="actions-row">
-                <Button onClick={newTest} aria-keyshortcuts="Escape">
-                  Reiniciar
-                </Button>
+                <Button onClick={newTest}>Reiniciar</Button>
                 {(mode === 'practice' || duration == null) && (
                   <Button onClick={session.finishManually} disabled={!session.running}>
                     Finalizar
