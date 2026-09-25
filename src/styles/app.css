@@ -1,3 +1,37 @@
+/* ============================================================
+   Design tokens (escala consistente em toda a aplicação)
+   ============================================================ */
+:root {
+  /* Escala tipográfica: 12 / 13 / 14 / 16 / 20 / 24 / 32 / 48 */
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 14px;
+  --fs-base: 16px;
+  --fs-lg: 20px;
+  --fs-xl: 24px;
+  --fs-2xl: 32px;
+  --fs-3xl: 48px;
+
+  /* Raios de borda */
+  --radius-sm: 10px; /* inputs, badges de ícone, avisos */
+  --radius-md: 12px; /* botões, nav, cards compactos */
+  --radius-lg: 16px; /* painéis, área de digitação, diálogos */
+  --radius-xl: 20px; /* cards principais */
+
+  /* Espaçamentos */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Alvos de toque e transições */
+  --touch: 44px;
+  --transition: 0.15s ease;
+}
+
 /* ============ Tokens de tema ============ */
 :root,
 :root[data-theme='dark'] {
@@ -14,6 +48,7 @@
   --correct: #00c853;
   --error: #ef4e64;
   --error-bg: rgba(239, 78, 100, 0.28);
+  --success-bg: rgba(0, 200, 83, 0.16);
   --btn-bg: #1c2647;
   --btn-bg-hover: #243158;
   --btn-border: #33406f;
@@ -35,6 +70,7 @@
   --correct: #007d38;
   --error: #c92a42;
   --error-bg: rgba(201, 42, 66, 0.25);
+  --success-bg: rgba(0, 125, 56, 0.14);
   --btn-bg: #f2f4fa;
   --btn-bg-hover: #ffffff;
   --btn-border: #b6c0d6;
@@ -56,6 +92,8 @@ body,
 
 body {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, sans-serif;
+  font-size: var(--fs-base);
+  line-height: 1.5;
   background: var(--bg) var(--bg-gradient) fixed;
   color: var(--text);
   transition: background 0.25s ease, color 0.25s ease;
@@ -75,18 +113,30 @@ textarea {
   border-radius: 6px;
 }
 
+/* Respeita a preferência do sistema por menos animação. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============ Estrutura geral ============ */
 .app-shell {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 24px 32px 48px;
+  padding: var(--space-6) var(--space-8) var(--space-8);
 }
 
 .top-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
 .brand {
@@ -102,28 +152,30 @@ textarea {
   height: 34px;
   display: grid;
   place-items: center;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: var(--accent);
   color: #fff;
 }
 
 .nav-tabs {
   display: flex;
-  gap: 6px;
+  gap: var(--space-1);
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  border-radius: 12px;
-  padding: 4px;
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
 }
 
 .nav-tab {
   border: none;
   background: transparent;
   color: var(--text-muted);
-  padding: 8px 16px;
-  border-radius: 9px;
+  padding: 10px var(--space-4);
+  border-radius: calc(var(--radius-md) - 3px);
   cursor: pointer;
   font-weight: 600;
+  min-height: var(--touch);
+  transition: color var(--transition), background var(--transition);
 }
 
 .nav-tab[aria-selected='true'] {
@@ -135,13 +187,13 @@ textarea {
   color: var(--text);
 }
 
-/* ============ Controles ============ */
+/* ============ Controles (barra de configuração rápida) ============ */
 .controls-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .controls-spacer {
@@ -150,14 +202,14 @@ textarea {
 
 .timer {
   font-variant-numeric: tabular-nums;
-  font-size: 34px;
+  font-size: var(--fs-2xl);
   font-weight: 700;
   letter-spacing: 2px;
   color: var(--text);
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  padding: 6px 18px;
-  border-radius: 14px;
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow);
 }
 
@@ -165,40 +217,40 @@ textarea {
   color: var(--error);
 }
 
-/* Linha superior minimalista da tela de digitação (relógio + ações discretas). */
+/* Linha superior minimalista da tela de digitação (relógio centralizado). */
 .typing-top {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  margin-bottom: 14px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
 }
 
 /* ============ Tela de configuração (setup) ============ */
 .setup-card {
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  border-radius: 20px;
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow);
-  padding: 26px 30px;
+  padding: var(--space-6) var(--space-8);
 }
 
 .setup-title {
-  margin: 0 0 18px;
-  font-size: 20px;
+  margin: 0 0 var(--space-5);
+  font-size: var(--fs-lg);
   text-align: center;
 }
 
 .setup-preview {
-  background: var(--text-area);
+  background: var(--typing-card-bg, var(--text-area));
   border: 1px solid var(--panel-border);
-  border-radius: 14px;
-  padding: 16px 20px;
-  margin-top: 14px;
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  margin-top: var(--space-4);
 }
 
 .setup-preview-label {
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.6px;
@@ -206,7 +258,7 @@ textarea {
 }
 
 .setup-preview-text {
-  margin: 8px 0 0;
+  margin: var(--space-2) 0 0;
   font-family: 'Cascadia Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace;
   color: var(--text);
   line-height: 1.7;
@@ -218,9 +270,9 @@ textarea {
 .typing-card {
   background: var(--typing-card-bg, var(--text-area));
   border: 1px solid var(--panel-border);
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
-  padding: 34px 40px;
+  padding: var(--space-8);
   min-height: 240px;
   cursor: default;
   user-select: none;
@@ -266,20 +318,11 @@ textarea {
   border-bottom-color: var(--caret-underline, var(--accent));
 }
 
-.typing-hint {
-  margin-top: 14px;
-  color: var(--text-muted);
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .ai-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--accent-strong);
   border: 1px solid var(--accent);
@@ -287,43 +330,12 @@ textarea {
   padding: 2px 10px;
 }
 
-/* ============ Progresso ============ */
-.progress-row {
-  display: flex;
-  gap: 22px;
-  align-items: center;
-  justify-content: center;
-  margin-top: 16px;
-  color: var(--text-muted);
-  font-size: 15px;
-}
-
-.progress-row strong {
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-
-.progress-bar {
-  height: 6px;
-  border-radius: 999px;
-  background: var(--panel-border);
-  overflow: hidden;
-  margin-top: 10px;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 999px;
-  transition: width 0.15s linear;
-}
-
 /* ============ Botões ============ */
 .actions-row {
   display: flex;
   justify-content: center;
-  gap: 14px;
-  margin-top: 22px;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
   flex-wrap: wrap;
 }
 
@@ -331,16 +343,16 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-2);
   border: 1px solid var(--btn-border);
   background: var(--btn-bg);
   color: var(--text);
-  padding: 12px 26px;
-  border-radius: 12px;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
   font-weight: 600;
   cursor: pointer;
-  min-height: 46px;
-  transition: background 0.15s ease, transform 0.05s ease;
+  min-height: var(--touch);
+  transition: background var(--transition), transform 0.05s ease;
 }
 
 .btn:hover {
@@ -367,21 +379,21 @@ textarea {
 }
 
 .btn-icon {
-  min-height: 42px;
-  min-width: 42px;
-  padding: 8px;
-  border-radius: 11px;
+  min-height: var(--touch);
+  min-width: var(--touch);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
 }
 
-/* ============ Select ============ */
+/* ============ Campos ============ */
 .field {
   display: inline-flex;
   flex-direction: column;
-  gap: 5px;
+  gap: var(--space-1);
 }
 
 .field-label {
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -392,10 +404,16 @@ textarea {
 .text-input {
   background: var(--btn-bg);
   border: 1px solid var(--btn-border);
-  border-radius: 10px;
-  padding: 10px 12px;
-  min-height: 42px;
+  border-radius: var(--radius-sm);
+  padding: 10px var(--space-3);
+  min-height: var(--touch);
   cursor: pointer;
+  transition: border-color var(--transition);
+}
+
+.select:hover,
+.text-input:hover:not([disabled]) {
+  border-color: var(--accent);
 }
 
 .text-input {
@@ -406,35 +424,35 @@ textarea {
 /* ============ Resultado ============ */
 .result-card {
   max-width: 620px;
-  margin: 30px auto 0;
+  margin: 0 auto;
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  border-radius: 20px;
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow);
-  padding: 28px 34px;
+  padding: var(--space-6) var(--space-8);
 }
 
 .result-title {
   text-align: center;
-  font-size: 15px;
+  font-size: var(--fs-md);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1.4px;
   color: var(--text-muted);
-  margin: 0 0 6px;
+  margin: 0 0 var(--space-1);
 }
 
 .result-wpm {
   text-align: center;
-  font-size: 58px;
+  font-size: var(--fs-3xl);
   font-weight: 800;
   color: var(--error);
-  margin: 4px 0 14px;
+  margin: var(--space-1) 0 var(--space-4);
   font-variant-numeric: tabular-nums;
 }
 
 .result-wpm small {
-  font-size: 22px;
+  font-size: var(--fs-xl);
   font-weight: 700;
   margin-left: 6px;
   color: var(--text-muted);
@@ -443,9 +461,9 @@ textarea {
 .result-grid {
   display: grid;
   grid-template-columns: 1fr auto;
-  row-gap: 9px;
-  column-gap: 24px;
-  font-size: 16.5px;
+  row-gap: var(--space-2);
+  column-gap: var(--space-6);
+  font-size: var(--fs-base);
 }
 
 .result-grid dt {
@@ -462,41 +480,41 @@ textarea {
 .result-actions {
   display: flex;
   justify-content: center;
-  gap: 14px;
-  margin-top: 24px;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
 }
 
 .finish-reason {
   text-align: center;
   color: var(--text-faint);
-  font-size: 13.5px;
-  margin: 0 0 10px;
+  font-size: var(--fs-sm);
+  margin: 0 0 var(--space-3);
 }
 
 /* ============ Estatísticas ============ */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
-  gap: 14px;
-  margin-bottom: 20px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
 .stat-card {
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  border-radius: 14px;
-  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
 }
 
 .stat-label {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-1);
 }
 
 .stat-value {
-  font-size: 26px;
+  font-size: var(--fs-xl);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
@@ -504,14 +522,14 @@ textarea {
 .stats-panel {
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  border-radius: 16px;
-  padding: 22px;
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
 }
 
 .empty-state {
   color: var(--text-muted);
   text-align: center;
-  padding: 30px 0;
+  padding: var(--space-8) 0;
 }
 
 /* ============ Diálogos ============ */
@@ -521,47 +539,47 @@ textarea {
   background: rgba(8, 11, 24, 0.6);
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: var(--space-6);
   z-index: 50;
 }
 
 .dialog {
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   width: min(680px, 100%);
   max-height: 88vh;
   overflow: auto;
-  padding: 26px 30px;
+  padding: var(--space-6);
 }
 
 .dialog-title {
-  margin: 0 0 18px;
-  font-size: 20px;
+  margin: 0 0 var(--space-5);
+  font-size: var(--fs-lg);
 }
 
 .dialog-section {
   border: none;
-  margin: 0 0 20px;
+  margin: 0 0 var(--space-5);
   padding: 0;
 }
 
 .dialog-legend {
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.8px;
   color: var(--text-muted);
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 .form-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  padding: 8px 0;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
 }
 
 .form-row > label {
@@ -570,8 +588,8 @@ textarea {
 
 .form-help {
   color: var(--text-faint);
-  font-size: 13px;
-  margin: 4px 0 0;
+  font-size: var(--fs-sm);
+  margin: var(--space-1) 0 0;
 }
 
 .switch {
@@ -582,7 +600,7 @@ textarea {
   border: 1px solid var(--btn-border);
   background: var(--btn-bg);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--transition);
   flex-shrink: 0;
 }
 
@@ -599,7 +617,7 @@ textarea {
   height: 20px;
   border-radius: 50%;
   background: #fff;
-  transition: left 0.15s ease;
+  transition: left var(--transition);
 }
 
 .switch[aria-checked='true'] .switch-knob {
@@ -611,30 +629,30 @@ textarea {
   width: 170px;
 }
 
-/* ============ Textos ============ */
+/* ============ Textos (gerenciador) ============ */
 .texts-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 16px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
   flex-wrap: wrap;
 }
 
 .texts-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .text-row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-4);
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  border-radius: 14px;
-  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
 }
 
 .text-row-main {
@@ -646,12 +664,12 @@ textarea {
   font-weight: 700;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .text-row-content {
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: var(--fs-md);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -659,7 +677,7 @@ textarea {
 }
 
 .tag {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   border-radius: 999px;
   padding: 2px 10px;
@@ -671,16 +689,16 @@ textarea {
 /* ============ IA ============ */
 .ai-panel {
   display: flex;
-  gap: 10px;
+  gap: var(--space-3);
   align-items: flex-end;
   flex-wrap: wrap;
 }
 
 .status-message {
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 14px;
-  margin-top: 12px;
+  border-radius: var(--radius-sm);
+  padding: 10px var(--space-4);
+  font-size: var(--fs-md);
+  margin-top: var(--space-3);
 }
 
 .status-message[data-kind='error'] {
@@ -689,14 +707,14 @@ textarea {
 }
 
 .status-message[data-kind='success'] {
-  background: rgba(62, 207, 116, 0.16);
+  background: var(--success-bg);
   color: var(--text);
 }
 
 /* ============ Responsivo (desktop-first, sem quebrar) ============ */
 @media (max-width: 860px) {
   .app-shell {
-    padding: 16px 16px 40px;
+    padding: var(--space-4) var(--space-4) var(--space-8);
   }
 
   .stats-grid {
@@ -704,7 +722,19 @@ textarea {
   }
 
   .typing-card {
-    padding: 22px 20px;
+    padding: var(--space-5) var(--space-5);
+  }
+
+  .setup-card {
+    padding: var(--space-5);
+  }
+
+  .dialog {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .result-card {
+    padding: var(--space-5) var(--space-5);
   }
 
   .typing-text {
@@ -714,5 +744,50 @@ textarea {
   .top-bar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .nav-tabs {
+    justify-content: stretch;
+  }
+
+  .nav-tab {
+    flex: 1;
+  }
+}
+
+/* Telas estreitas: controles empilham sem estourar a largura. */
+@media (max-width: 480px) {
+  .timer {
+    font-size: var(--fs-xl);
+    padding: var(--space-2) var(--space-4);
+  }
+
+  .typing-card {
+    padding: var(--space-4);
+  }
+
+  .setup-card,
+  .result-card {
+    padding: var(--space-4);
+  }
+
+  .result-wpm {
+    font-size: var(--fs-2xl);
+  }
+
+  .form-row {
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .actions-row {
+    gap: var(--space-2);
+  }
+
+  .range {
+    width: 140px;
   }
 }
