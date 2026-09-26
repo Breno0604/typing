@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { SessionMode } from '../types/domain'
 import { getAllResults } from '../storage/resultsRepo'
 import type { TestResult } from '../types/domain'
 import { StatsChart, type ChartPoint } from '../components/StatsChart'
@@ -7,7 +6,6 @@ import { Button } from '../components/ui/controls'
 
 export function StatsPage({ onBack }: { onBack: () => void }) {
   const [results, setResults] = useState<TestResult[]>([])
-  const [modeFilter, setModeFilter] = useState<SessionMode>('test')
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -17,7 +15,8 @@ export function StatsPage({ onBack }: { onBack: () => void }) {
     })
   }, [])
 
-  const filtered = useMemo(() => results.filter((r) => r.mode === modeFilter), [results, modeFilter])
+  // Lista unificada: sessões de todas as origens (sem filtro de modo).
+  const filtered = results
 
   const summary = useMemo(() => {
     if (filtered.length === 0) return null
@@ -44,18 +43,6 @@ export function StatsPage({ onBack }: { onBack: () => void }) {
     <div>
       <div className="controls-bar">
         <h1 style={{ fontSize: 22, margin: 0 }}>Estatísticas de evolução</h1>
-        <div className="controls-spacer" />
-        <div className="field">
-          <select
-            className="select"
-            aria-label="Filtrar por modo"
-            value={modeFilter}
-            onChange={(e) => setModeFilter(e.target.value as SessionMode)}
-          >
-            <option value="test">Testes</option>
-            <option value="practice">Treinos</option>
-          </select>
-        </div>
       </div>
 
       {!loaded ? (
@@ -63,7 +50,7 @@ export function StatsPage({ onBack }: { onBack: () => void }) {
       ) : filtered.length === 0 ? (
         <div className="stats-panel">
           <p className="empty-state">
-            Nenhum resultado {modeFilter === 'test' ? 'de teste' : 'de treino'} registrado ainda.
+            Nenhum resultado registrado ainda.
             Complete uma sessão para começar a acompanhar sua evolução.
           </p>
         </div>
@@ -83,7 +70,7 @@ export function StatsPage({ onBack }: { onBack: () => void }) {
               <div className="stat-value">{Math.round(summary!.avgAccuracy)}%</div>
             </div>
             <div className="stat-card">
-              <div className="stat-label">{modeFilter === 'test' ? 'Testes realizados' : 'Treinos realizados'}</div>
+              <div className="stat-label">Sessões realizadas</div>
               <div className="stat-value">{summary!.count}</div>
             </div>
           </div>

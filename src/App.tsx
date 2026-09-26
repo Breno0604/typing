@@ -1,59 +1,24 @@
 import { useEffect, useState } from 'react'
-import type { LightCardBgId, ThemeId } from './types/domain'
-import { useGroqConfig, useSettings } from './hooks/useSettings'
-import { PracticePage } from './pages/PracticePage'
+import { useGroqConfig } from './hooks/useSettings'
+import { PracticePage, PracticeOverlays } from './pages/PracticePage'
 import { StatsPage } from './pages/StatsPage'
-import { IconChart, IconKeyboard } from './components/ui/Icons'
+import { IconChart, IconFileText, IconKeyboard, IconSparkles } from './components/ui/Icons'
 
 type Page = 'practice' | 'stats'
 
-const ACCENT_COLORS = {
-  blue: '#4f7cff',
-  green: '#3ecf74',
-  slate: '#64748b',
-  orange: '#ff9f43',
-  pink: '#ff6b9d',
-} as const
-
-/** Fundos do card de digitação no tema claro (configuráveis). */
-const LIGHT_CARD_BGS: Record<LightCardBgId, string> = {
-  white: '#ffffff',
-  default: '#dde3f0',
-  soft: '#eef2f9',
-  cream: '#fbf7ec',
-  mint: '#eaf7ef',
-} as const
-
 export default function App() {
-  const { settings, update, loaded } = useSettings()
   const { groqConfig, updateGroqConfig } = useGroqConfig()
   const [page, setPage] = useState<Page>('practice')
+  const [showTexts, setShowTexts] = useState(false)
+  const [showAi, setShowAi] = useState(false)
 
+  // Tema claro fixo: única identidade visual do MVP.
   useEffect(() => {
-    document.documentElement.dataset.theme = settings.theme as ThemeId
-  }, [settings.theme])
-
-  if (!loaded) {
-    return <div className="app-shell" aria-busy="true" />
-  }
+    document.documentElement.dataset.theme = 'light'
+  }, [])
 
   return (
-    <div
-      className="app-shell"
-      style={{
-        // Cor do destaque configurável aplicada como token.
-        ['--accent' as string]: ACCENT_COLORS[settings.accentColor],
-        ['--accent-strong' as string]: ACCENT_COLORS[settings.accentColor],
-        // Cores do caractere atual (letra + sublinhado) configuráveis.
-        ['--caret-color' as string]: ACCENT_COLORS[settings.caretColor],
-        ['--caret-underline' as string]: ACCENT_COLORS[settings.caretUnderlineColor],
-        // Fundo do card de digitação (configurável; efeito visual apenas no tema claro).
-        ...(settings.theme === 'light'
-          ? { ['--typing-card-bg' as string]: LIGHT_CARD_BGS[settings.lightTypingCardBg] }
-          : {}),
-        fontSize: settings.uiFontSize === 'small' ? '14px' : settings.uiFontSize === 'large' ? '17px' : undefined,
-      }}
-    >
+    <div className="app-shell">
       <header className="top-bar">
         <div className="brand">
           <span className="brand-badge">
@@ -70,20 +35,42 @@ export default function App() {
               <IconChart size={16} /> Evolução
             </span>
           </button>
+          <button
+            className="nav-tab"
+            aria-label="Meus textos"
+            title="Meus textos"
+            onClick={() => setShowTexts(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <IconFileText size={16} /> Textos
+          </button>
+          <button
+            className="nav-tab"
+            aria-label="Gerar com IA"
+            title="Gerar texto com IA"
+            onClick={() => setShowAi(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <IconSparkles size={16} /> IA
+          </button>
         </nav>
       </header>
 
       {page === 'practice' ? (
-        <PracticePage
-          settings={settings}
-          onSettingsChange={update}
-          groqConfig={groqConfig}
-          onGroqChange={updateGroqConfig}
-          onOpenStats={() => setPage('stats')}
-        />
+        <PracticePage />
       ) : (
         <StatsPage onBack={() => setPage('practice')} />
       )}
+
+      {/* TextsManager e painel de IA ficam acessíveis de qualquer aba. */}
+      <PracticeOverlays
+        showTexts={showTexts}
+        onCloseTexts={() => setShowTexts(false)}
+        showAi={showAi}
+        onCloseAi={() => setShowAi(false)}
+        groqConfig={groqConfig}
+        onGroqChange={updateGroqConfig}
+      />
     </div>
   )
 }
