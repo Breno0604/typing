@@ -327,10 +327,9 @@ textarea {
 }
 
 /* ============ Área de digitação ============ */
-/* Fundo do card de digitação: --typing-card-bg é definido pelo App apenas no
-   tema claro (configurável); no escuro, cai no token padrão --text-area. */
+/* Card do texto a digitar: fundo branco fixo. */
 .typing-card {
-  background: var(--typing-card-bg, var(--text-area));
+  background: #ffffff;
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
