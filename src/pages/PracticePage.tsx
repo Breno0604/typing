@@ -1,20 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { DurationId, LevelId, SessionMode, TextEntry } from '../types/domain'
-import { DURATIONS, durationSeconds, MAX_CUSTOM_SECONDS, MIN_CUSTOM_SECONDS } from '../logic/durations'
-import { buildAllTexts } from '../storage/seed'
+import type { DurationId, SessionMode, TextEntry } from '../types/domain'
+import { durationSeconds } from '../logic/durations'
 import { useTestSession } from '../hooks/useTestSession'
 import { TypingArea } from '../components/TypingArea'
 import { ResultCard } from '../components/ResultCard'
 import { AiGeneratePanel } from '../components/AiGeneratePanel'
 import { TextsManager } from '../components/TextsManager'
-import { SettingsDialog } from '../components/SettingsDialog'
+import { TypingSettingsDialog } from '../components/TypingSettingsDialog'
+import { SystemSettingsDialog } from '../components/SystemSettingsDialog'
 import { Dialog } from '../components/ui/Dialog'
 import { Button, Field, SelectControl } from '../components/ui/controls'
-import { IconFileText, IconSettings } from '../components/ui/Icons'
-import { LEVEL_IDS, levelLabel } from '../logic/levels'
+import { IconKeyboard, IconSettings } from '../components/ui/Icons'
 import { formatClock } from '../hooks/useTimer'
 import type { GroqConfig, Settings } from '../types/domain'
 import { useUserTexts } from '../hooks/useUserTexts'
+import {
+  DEFAULT_SUBTOPIC,
+  DEFAULT_TOPIC,
+  TOPICS,
+  cardsForSubtopic,
+  type SubtopicDef,
+  type TopicDef,
+} from '../data/textTopics'
 
 export interface PracticePageProps {
   settings: Settings
@@ -24,6 +31,9 @@ export interface PracticePageProps {
   onOpenStats: () => void
 }
 
+/** Etapas da navegação por cards na tela de configuração. */
+type SetupStep = 'topics' | 'subtopics' | 'confirm'
+
 export function PracticePage(props: PracticePageProps) {
   const { settings } = props
   const userTexts = useUserTexts()
@@ -31,45 +41,38 @@ export function PracticePage(props: PracticePageProps) {
   const [mode, setMode] = useState<SessionMode>(settings.defaultMode)
   const [durationId, setDurationId] = useState<DurationId>(settings.defaultDuration)
   const [customSeconds, setCustomSeconds] = useState(settings.defaultCustomDuration)
-  const [level, setLevel] = useState<LevelId>(settings.defaultLevel)
-  const [textFilter, setTextFilter] = useState<'all' | 'preset' | 'user'>('all')
-  /** Fase da experiência: configuração ou digitação. */
-  const [phase, setPhase] = useState<'setup' | 'typing'>('setup')
 
-  const [showSettings, setShowSettings] = useState(false)
+  // Navegação de cards: tema → subtema → confirmação.
+  const [step, setStep] = useState<SetupStep>('topics')
+  const [topic, setTopic] = useState<TopicDef>(DEFAULT_TOPIC)
+  const [subtopic, setSubtopic] = useState<SubtopicDef>(DEFAULT_SUBTOPIC)
+  const [selectedTextId, setSelectedTextId] = useState<string | null>(DEFAULT_SUBTOPIC.presetIds[0] ?? null)
+
+  const [showTypingSettings, setShowTypingSettings] = useState(false)
+  const [showSystemSettings, setShowSystemSettings] = useState(false)
   const [showTexts, setShowTexts] = useState(false)
   const [showAi, setShowAi] = useState(false)
 
-  const allTexts = useMemo(() => buildAllTexts(userTexts.texts), [userTexts.texts])
   // "user" inclui textos do usuário E gerados por IA (ambos vivem no IndexedDB).
-  const availableTexts = useMemo(
-    () =>
-      textFilter === 'all'
-        ? allTexts
-        : allTexts.filter((t) => (textFilter === 'user' ? t.source !== 'preset' : t.source === textFilter)),
-    [allTexts, textFilter],
-  )
-  const levelTexts = useMemo(
-    () => availableTexts.filter((t) => t.level === level),
-    [availableTexts, level],
+  const userAndAiTexts = useMemo(
+    () => userTexts.texts.filter((t) => t.source !== 'preset'),
+    [userTexts.texts],
   )
 
-  const [currentText, setCurrentText] = useState<TextEntry | null>(null)
+  // Todos os textos conhecidos (para resolver o texto selecionado).
+  const allTexts = useMemo(() => {
+    const presets: TextEntry[] = TOPICS.flatMap((t) =>
+      t.subtopics.flatMap((s) =>
+        cardsForSubtopic(s, []).map((c) => c.entry),
+      ),
+    )
+    return [...presets, ...userAndAiTexts]
+  }, [userAndAiTexts])
 
-  // Escolhe texto do nível selecionado; reage a mudanças de nível/fonte.
-  useEffect(() => {
-    const pool = levelTexts.length > 0 ? levelTexts : availableTexts
-    if (pool.length === 0) {
-      setCurrentText(null)
-      return
-    }
-    setCurrentText((prev) => {
-      const inPool = prev && pool.some((t) => t.id === prev.id)
-      if (inPool) return prev
-      return pool[Math.floor(Math.random() * pool.length)]
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [level, textFilter, allTexts])
+  const currentText = useMemo(
+    () => allTexts.find((t) => t.id === selectedTextId) ?? null,
+    [allTexts, selectedTextId],
+  )
 
   const duration = mode === 'practice' ? null : durationSeconds(durationId, customSeconds)
 
@@ -86,14 +89,13 @@ export function PracticePage(props: PracticePageProps) {
   keyHandlerRef.current = session.handleKeyDown
 
   useEffect(() => {
-    if (phase !== 'typing') return
     const onKeyDown = (e: KeyboardEvent) => {
       // Não capturar enquanto um diálogo estiver aberto.
       if (document.querySelector('.dialog-overlay')) return
       const target = e.target as HTMLElement | null
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
       if (e.key === 'Tab' || e.key === 'Escape') return
-      // Espaço fora de inputs não deve rolar a página (antes ou depois do teste).
+      // Espaço fora de inputs não deve rolar a página.
       if (e.key === ' ') {
         e.preventDefault()
       }
@@ -101,184 +103,104 @@ export function PracticePage(props: PracticePageProps) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [phase])
-
-  const newTest = () => {
-    const pool = levelTexts.length > 0 ? levelTexts : availableTexts
-    if (pool.length > 0) {
-      const candidates = pool.length > 1 ? pool.filter((t) => t.id !== currentText?.id) : pool
-      setCurrentText(candidates[Math.floor(Math.random() * candidates.length)])
-    }
-    session.reset()
-  }
+  }, [])
 
   const startTyping = () => {
     session.reset()
-    setPhase('typing')
   }
 
   const backToSetup = () => {
     session.reset()
-    setPhase('setup')
+    setStep('topics')
+    setTopic(DEFAULT_TOPIC)
+    setSubtopic(DEFAULT_SUBTOPIC)
+    setSelectedTextId(DEFAULT_SUBTOPIC.presetIds[0] ?? null)
+  }
+
+  const retrySameText = () => {
+    session.reset()
+  }
+
+  const selectSubtopic = (t: TopicDef, s: SubtopicDef) => {
+    setTopic(t)
+    setSubtopic(s)
+    setSelectedTextId(s.presetIds[0] ?? null)
+    setStep('confirm')
   }
 
   const FONT_SCALE = { small: 0.85, medium: 1, large: 1.2 } as const
   const typingFontSize = 26 * FONT_SCALE[settings.typingFontSize]
 
-  const sourceLabel = (id: TextEntry['source']) =>
-    id === 'preset' ? 'Predefinidos' : id === 'ai' ? 'IA' : 'Meus textos'
+  const originLabel = (origin: 'preset' | 'user' | 'ai') =>
+    origin === 'preset' ? 'Predefinido' : origin === 'ai' ? 'IA' : 'Meu texto'
 
   return (
     <div style={{ '--typing-font-size': `${typingFontSize}px` } as React.CSSProperties}>
-      {phase === 'setup' ? (
-        /* ================= Tela de configuração ================= */
-        <section className="setup-card" aria-label="Configuração do teste">
-          <h2 className="setup-title">Configurar teste</h2>
+      {/* ================= Tela de configuração (cards) ================= */}
+      {step !== 'confirm' && (
+        <section className="setup-card" aria-label="Escolher texto">
+          <h2 className="setup-title">O que você quer digitar?</h2>
 
-          <div className="controls-bar">
-            <Field label="Modo">
-              <SelectControl
-                aria-label="Modo"
-                value={mode}
-                onChange={(e) => setMode(e.target.value as SessionMode)}
-              >
-                <option value="test">Teste</option>
-                <option value="practice">Treino</option>
-              </SelectControl>
-            </Field>
-
-            {mode === 'test' && (
-              <Field label="Duração">
-                <SelectControl
-                  aria-label="Duração"
-                  value={durationId}
-                  onChange={(e) => setDurationId(e.target.value as DurationId)}
-                >
-                  {DURATIONS.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.seconds < 60 || d.seconds % 60 !== 0 ? `${d.seconds}s` : `${d.seconds / 60}min`}
-                    </option>
-                  ))}
-                  <option value="custom">Personalizado</option>
-                  <option value="unlimited">Sem limite</option>
-                </SelectControl>
-              </Field>
-            )}
-
-            {mode === 'test' && durationId === 'custom' && (
-              <Field label="Segundos">
-                <input
-                  type="number"
-                  className="text-input"
-                  style={{ width: 90 }}
-                  min={MIN_CUSTOM_SECONDS}
-                  max={MAX_CUSTOM_SECONDS}
-                  aria-label="Segundos personalizados"
-                  value={customSeconds}
-                  onChange={(e) => {
-                    const n = Number(e.target.value)
-                    if (Number.isFinite(n) && n >= 1) setCustomSeconds(n)
-                  }}
-                />
-              </Field>
-            )}
-
-            <Field label="Nível">
-              <SelectControl
-                aria-label="Nível"
-                value={level}
-                onChange={(e) => setLevel(e.target.value as LevelId)}
-              >
-                {LEVEL_IDS.map((l) => (
-                  <option key={l} value={l}>
-                    {levelLabel(l)}
-                  </option>
+          {step === 'topics' && (
+            <>
+              <p className="setup-hint">Escolha um tema</p>
+              <div className="topic-grid">
+                {TOPICS.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className="choice-card"
+                    onClick={() => {
+                      setTopic(t)
+                      setStep('subtopics')
+                    }}
+                  >
+                    <span className="choice-card-title">{t.label}</span>
+                    <span className="choice-card-desc">{t.description}</span>
+                  </button>
                 ))}
-              </SelectControl>
-            </Field>
-
-            <Field label="Fonte do texto" htmlFor="setup-text-source">
-              <SelectControl
-                id="setup-text-source"
-                aria-label="Fonte do texto"
-                value={textFilter}
-                onChange={(e) => setTextFilter(e.target.value as typeof textFilter)}
-              >
-                <option value="all">Todas</option>
-                <option value="preset">Predefinidos</option>
-                <option value="user">Meus textos / IA</option>
-              </SelectControl>
-            </Field>
-
-            <Field label="Som">
-              <SelectControl
-                aria-label="Sons de tecla"
-                value={settings.soundEnabled ? 'on' : 'off'}
-                onChange={(e) => props.onSettingsChange({ soundEnabled: e.target.value === 'on' })}
-              >
-                <option value="on">Ativado</option>
-                <option value="off">Desativado</option>
-              </SelectControl>
-            </Field>
-
-            <Field label="Tema">
-              <SelectControl
-                aria-label="Tema"
-                value={settings.theme}
-                onChange={(e) => props.onSettingsChange({ theme: e.target.value as Settings['theme'] })}
-              >
-                <option value="dark">Escuro</option>
-                <option value="light">Claro</option>
-              </SelectControl>
-            </Field>
-
-            <div className="controls-spacer" />
-
-            <Button className="btn-icon" aria-label="Meus textos" title="Meus textos" onClick={() => setShowTexts(true)}>
-              <IconFileText />
-            </Button>
-            <Button className="btn-icon" aria-label="Gerar com IA" title="Gerar com IA" onClick={() => setShowAi(true)}>
-              ✦
-            </Button>
-            <Button
-              className="btn-icon"
-              aria-label="Configurações"
-              title="Configurações"
-              onClick={() => setShowSettings(true)}
-            >
-              <IconSettings />
-            </Button>
-          </div>
-
-          {currentText && (
-            <div className="setup-preview">
-              <span className="setup-preview-label">
-                Texto selecionado — {sourceLabel(currentText.source)} · {levelLabel(currentText.level)}
-              </span>
-              <p className="setup-preview-text">
-                {currentText.content.length > 220
-                  ? `${currentText.content.slice(0, 220)}…`
-                  : currentText.content}
-              </p>
-            </div>
+              </div>
+            </>
           )}
 
-          <div className="actions-row" style={{ marginTop: 24 }}>
-            <Button variant="primary" onClick={startTyping} disabled={!currentText}>
-              Começar
-            </Button>
-            <Button onClick={newTest} disabled={!currentText}>
-              Sortear outro texto
-            </Button>
-          </div>
+          {step === 'subtopics' && (
+            <>
+              <p className="setup-hint">{topic.label} — escolha um assunto</p>
+              <div className="topic-grid">
+                {topic.subtopics.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className="choice-card"
+                    onClick={() => selectSubtopic(topic, s)}
+                  >
+                    <span className="choice-card-title">{s.label}</span>
+                    <span className="choice-card-desc">
+                      {s.presetIds.length} {s.presetIds.length === 1 ? 'texto' : 'textos'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="actions-row">
+                <Button onClick={() => setStep('topics')}>Voltar aos temas</Button>
+              </div>
+            </>
+          )}
 
-          <div style={{ marginTop: 18, textAlign: 'center' }}>
-            <Button onClick={props.onOpenStats}>Ver estatísticas de evolução</Button>
+          <div className="setup-tools">
+            <Button aria-label="Configurações da digitação" title="Configurações da digitação (textos e IA)" onClick={() => setShowTypingSettings(true)}>
+              <IconKeyboard size={16} /> Digitação
+            </Button>
+            <Button aria-label="Configurações do sistema" title="Configurações do sistema (aparência e IA)" onClick={() => setShowSystemSettings(true)}>
+              <IconSettings size={16} /> Sistema
+            </Button>
           </div>
         </section>
-      ) : (
-        /* ================= Tela de digitação (minimalista) ================= */
-        <section aria-label="Digitação">
+      )}
+
+      {/* ================= Confirmação + digitação + resultado ================= */}
+      {step === 'confirm' && (
+        <section aria-label="Sessão de digitação">
           {session.finished && session.finishedMetrics ? (
             /* Resultado: tela completa com estatísticas. */
             <>
@@ -286,14 +208,133 @@ export function PracticePage(props: PracticePageProps) {
                 <ResultCard
                   metrics={session.finishedMetrics}
                   finishReason={session.session.finishReason ?? 'manual'}
-                  onNewTest={newTest}
+                  onNewTest={retrySameText}
                   onRetry={session.reset}
                 />
               </div>
               <div className="actions-row">
-                <Button onClick={backToSetup}>Configurar novo teste</Button>
+                <Button onClick={backToSetup}>Escolher outro texto</Button>
               </div>
             </>
+          ) : session.idle ? (
+            /* Confirmação antes de começar. */
+            <div className="setup-card">
+              <h2 className="setup-title">{subtopic.label}</h2>
+              <p className="setup-hint">{topic.label}</p>
+
+              {currentText && (
+                <div className="setup-preview">
+                  <span className="setup-preview-label">
+                    {currentText.title} · {originLabel(
+                      currentText.source === 'preset' ? 'preset' : currentText.source === 'ai' ? 'ai' : 'user',
+                    )}
+                  </span>
+                  <p className="setup-preview-text">
+                    {currentText.content.length > 220
+                      ? `${currentText.content.slice(0, 220)}…`
+                      : currentText.content}
+                  </p>
+                </div>
+              )}
+
+              {subtopic.presetIds.length >= 0 && userAndAiTexts.length > 0 && (
+                <div className="text-picker">
+                  <span className="setup-preview-label">Outros textos deste assunto</span>
+                  <div className="topic-grid">
+                    {cardsForSubtopic(subtopic, userAndAiTexts).map((card) => (
+                      <button
+                        key={card.entry.id}
+                        type="button"
+                        className={`choice-card ${selectedTextId === card.entry.id ? 'choice-card-selected' : ''}`}
+                        onClick={() => setSelectedTextId(card.entry.id)}
+                      >
+                        <span className="choice-card-title">{card.entry.title}</span>
+                        <span className="choice-card-desc">
+                          {originLabel(card.origin)} ·{' '}
+                          {card.entry.content.length > 80
+                            ? `${card.entry.content.slice(0, 80)}…`
+                            : card.entry.content}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="controls-bar" style={{ marginTop: 16 }}>
+                <Field label="Modo">
+                  <SelectControl
+                    aria-label="Modo"
+                    value={mode}
+                    onChange={(e) => setMode(e.target.value as SessionMode)}
+                  >
+                    <option value="test">Teste</option>
+                    <option value="practice">Treino</option>
+                  </SelectControl>
+                </Field>
+                {mode === 'test' && (
+                  <Field label="Duração">
+                    <SelectControl
+                      aria-label="Duração"
+                      value={durationId}
+                      onChange={(e) => setDurationId(e.target.value as DurationId)}
+                    >
+                      <option value="5">5s</option>
+                      <option value="10">10s</option>
+                      <option value="15">15s</option>
+                      <option value="30">30s</option>
+                      <option value="60">60s</option>
+                      <option value="90">90s</option>
+                      <option value="120">2min</option>
+                      <option value="180">3min</option>
+                      <option value="custom">Personalizado</option>
+                      <option value="unlimited">Sem limite</option>
+                    </SelectControl>
+                  </Field>
+                )}
+                {mode === 'test' && durationId === 'custom' && (
+                  <Field label="Segundos">
+                    <input
+                      type="number"
+                      className="text-input"
+                      style={{ width: 90 }}
+                      min={1}
+                      max={3600}
+                      aria-label="Segundos personalizados"
+                      value={customSeconds}
+                      onChange={(e) => {
+                        const n = Number(e.target.value)
+                        if (Number.isFinite(n) && n >= 1) setCustomSeconds(n)
+                      }}
+                    />
+                  </Field>
+                )}
+                <div className="controls-spacer" />
+                <Button
+                  className="btn-icon"
+                  aria-label="Configurações da digitação"
+                  title="Configurações da digitação"
+                  onClick={() => setShowTypingSettings(true)}
+                >
+                  <IconKeyboard />
+                </Button>
+                <Button
+                  className="btn-icon"
+                  aria-label="Configurações do sistema"
+                  title="Configurações do sistema"
+                  onClick={() => setShowSystemSettings(true)}
+                >
+                  <IconSettings />
+                </Button>
+              </div>
+
+              <div className="actions-row" style={{ marginTop: 24 }}>
+                <Button variant="primary" onClick={startTyping} disabled={!currentText}>
+                  Começar
+                </Button>
+                <Button onClick={() => setStep('subtopics')}>Voltar aos assuntos</Button>
+              </div>
+            </div>
           ) : (
             /* Digitação: apenas relógio e texto. */
             <>
@@ -315,20 +356,55 @@ export function PracticePage(props: PracticePageProps) {
               </div>
 
               <div className="actions-row">
-                <Button onClick={newTest}>Reiniciar</Button>
+                <Button onClick={session.reset}>Reiniciar</Button>
                 {(mode === 'practice' || duration == null) && (
                   <Button onClick={session.finishManually} disabled={!session.running}>
                     Finalizar
                   </Button>
                 )}
-                <Button onClick={backToSetup}>Configurar</Button>
+                <Button onClick={backToSetup}>Escolher outro texto</Button>
               </div>
             </>
           )}
         </section>
       )}
 
-      {/* ================= Diálogos (compartilhados) ================= */}
+      {/* ================= Diálogos ================= */}
+      <TypingSettingsDialog
+        open={showTypingSettings}
+        onClose={() => setShowTypingSettings(false)}
+        mode={mode}
+        onModeChange={setMode}
+        durationId={durationId}
+        onDurationChange={setDurationId}
+        customSeconds={customSeconds}
+        onCustomSecondsChange={setCustomSeconds}
+        typingFontSize={settings.typingFontSize}
+        onTypingFontSizeChange={(s) => props.onSettingsChange({ typingFontSize: s })}
+        soundEnabled={settings.soundEnabled}
+        onSoundEnabledChange={(v) => props.onSettingsChange({ soundEnabled: v })}
+        soundVolume={settings.soundVolume}
+        onSoundVolumeChange={(v) => props.onSettingsChange({ soundVolume: v })}
+        userTextsCount={userTexts.texts.length}
+        onOpenTexts={() => {
+          setShowTypingSettings(false)
+          setShowTexts(true)
+        }}
+        onOpenAi={() => {
+          setShowTypingSettings(false)
+          setShowAi(true)
+        }}
+      />
+
+      <SystemSettingsDialog
+        open={showSystemSettings}
+        onClose={() => setShowSystemSettings(false)}
+        settings={settings}
+        onChange={props.onSettingsChange}
+        groqConfig={props.groqConfig}
+        onGroqChange={props.onGroqChange}
+      />
+
       <TextsManager
         open={showTexts}
         onClose={() => setShowTexts(false)}
@@ -337,34 +413,27 @@ export function PracticePage(props: PracticePageProps) {
         onUpdate={userTexts.update}
         onDelete={userTexts.remove}
         onUse={(t) => {
-          setCurrentText(t)
-          setLevel(t.level)
-          session.reset()
+          setSelectedTextId(t.id)
           setShowTexts(false)
+          setStep('confirm')
         }}
-      />
-
-      <SettingsDialog
-        open={showSettings}
-        onClose={() => setShowSettings(false)}
-        settings={settings}
-        onChange={props.onSettingsChange}
-        groqConfig={props.groqConfig}
-        onGroqChange={props.onGroqChange}
       />
 
       <Dialog open={showAi} onClose={() => setShowAi(false)} title="Gerar texto com IA (Groq)">
         <AiGeneratePanel
           groqConfig={props.groqConfig}
-          level={level}
-          onLevelChange={setLevel}
+          level={currentText?.level ?? 'basic'}
+          onLevelChange={() => {
+            /* Nível é definido pelo texto escolhido; mantido para o painel. */
+          }}
           onUseText={(t) => {
-            setCurrentText(t)
-            session.reset()
+            setSelectedTextId(t.id)
+            setShowAi(false)
+            setStep('confirm')
           }}
           onOpenSettings={() => {
             setShowAi(false)
-            setShowSettings(true)
+            setShowSystemSettings(true)
           }}
         />
       </Dialog>

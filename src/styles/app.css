@@ -236,9 +236,71 @@ textarea {
 }
 
 .setup-title {
-  margin: 0 0 var(--space-5);
+  margin: 0 0 var(--space-2);
   font-size: var(--fs-lg);
   text-align: center;
+}
+
+.setup-hint {
+  margin: 0 0 var(--space-4);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--fs-md);
+}
+
+/* Grade de cards de escolha (temas, assuntos e textos). */
+.topic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.choice-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  text-align: left;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  cursor: pointer;
+  min-height: var(--touch);
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.choice-card:hover {
+  background: var(--btn-bg-hover);
+  border-color: var(--accent);
+}
+
+.choice-card-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.choice-card-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.choice-card-desc {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.setup-tools {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+.text-picker {
+  margin-top: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
 }
 
 .setup-preview {
