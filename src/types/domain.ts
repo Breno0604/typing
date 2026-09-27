@@ -105,4 +105,27 @@ export interface ResultMetrics {
   charsTotal: number
   /** Milissegundos. */
   elapsedMs: number
+  /**
+   * Posições erradas em algum momento e que estavam corretas ao fim da sessão
+   * (erro percebido e corrigido). Presente apenas em sessões novas.
+   */
+  correctedChars?: number
+  /**
+   * Posições erradas que permaneceram incorretas ao fim da sessão
+   * (erro permanente). Presente apenas em sessões novas.
+   */
+  permanentErrors?: number
+  /**
+   * Estatísticas por caractere esperado (letra/espaco/pontuacao): tentativas e erros.
+   * Presente apenas em sessões novas; alimenta o modal de estatisticas detalhadas.
+   */
+  charStats?: CharStatEntry[]
+}
+
+/** Estatistica agregada de um caractere esperado em uma sessão. */
+export interface CharStatEntry {
+  /** Caractere exibivel (String.fromCodePoint). */
+  char: string
+  attempts: number
+  errors: number
 }

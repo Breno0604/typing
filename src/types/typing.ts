@@ -30,4 +30,16 @@ export interface TypingSession {
   errors: number
   /** Usos do Backspace. */
   corrections: number
+  /** Posições que já receberam ao menos um toque incorreto (histórico de erro por posição). */
+  errorPositions: Set<number>
+  /**
+   * Estatísticas por caractere esperado: [codePoint, { tentativas, erros }].
+   * Agregadas por caractere alvo para alimentar o modal de estatísticas detalhadas.
+   */
+  charStats: Map<number, CharStat>
+}
+
+export interface CharStat {
+  attempts: number
+  errors: number
 }

@@ -34,6 +34,10 @@ export function ResultCard(props: {
         <dd>{m.errors}</dd>
         <dt>Correções</dt>
         <dd>{m.corrections}</dd>
+        <dt>Corrigidos</dt>
+        <dd>{m.correctedChars ?? '—'}</dd>
+        <dt>Erros permanentes</dt>
+        <dd>{m.permanentErrors ?? '—'}</dd>
         <dt>Toques Totais</dt>
         <dd>{m.totalKeystrokes}</dd>
         <dt>Palavras</dt>

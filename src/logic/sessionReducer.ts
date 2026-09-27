@@ -1,5 +1,5 @@
 import type { FinishReason, SessionMode } from '../types/domain'
-import type { CharState, TypingEvent, TypingSession } from '../types/typing'
+import type { CharState, CharStat, TypingEvent, TypingSession } from '../types/typing'
 import { toCodePoints } from './texts'
 
 /**
@@ -21,6 +21,8 @@ export function createSession(mode: SessionMode, text: string): TypingSession {
     grossKeystrokes: 0,
     errors: 0,
     corrections: 0,
+    errorPositions: new Set(),
+    charStats: new Map(),
   }
 }
 
@@ -61,7 +63,19 @@ function reduceCharacter(state: TypingSession, codePoint: number, now: number) {
 
   const expected = state.target[state.position]
   const correct = codePoint === expected
-  if (!correct) session.errors = state.errors + 1
+  if (!correct) {
+    session.errors = state.errors + 1
+    session.errorPositions = new Set(state.errorPositions)
+    session.errorPositions.add(state.position)
+  }
+
+  // Estatística por caractere esperado (agrega pelo alvo, não pelo digitado).
+  const charStat: CharStat = state.charStats.get(expected) ?? { attempts: 0, errors: 0 }
+  session.charStats = new Map(state.charStats)
+  session.charStats.set(expected, {
+    attempts: charStat.attempts + 1,
+    errors: charStat.errors + (correct ? 0 : 1),
+  })
 
   // Sobrescreve o estado da posição (re-digitação após Backspace substitui).
   session.entries = new Map(state.entries)

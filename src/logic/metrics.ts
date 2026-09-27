@@ -1,4 +1,4 @@
-import type { ResultMetrics } from '../types/domain'
+import type { CharStatEntry, ResultMetrics } from '../types/domain'
 import type { TypingSession } from '../types/typing'
 import { countSpaces } from './texts'
 
@@ -17,6 +17,9 @@ import { countSpaces } from './texts'
  * - Correções = usos do Backspace.
  * - Toques totais = toques brutos + correções.
  * - Toques líquidos = toques brutos - erros.
+ * - Corrigidos = posições erradas em algum momento e corretas ao fim (por caractere).
+ * - Erros permanentes = posições erradas que seguiram incorretas ao fim.
+ * - charStats = tentativas/erros agregados por caractere esperado.
  * - Palavras = concluídas (posições de espaço alcançadas) / total do texto.
  * - Caracteres = corretos posicionais / total do texto.
  */
@@ -43,6 +46,27 @@ export function historicalCorrectKeystrokes(session: TypingSession): number {
   return session.grossKeystrokes - session.errors
 }
 
+/**
+ * Classifica as posições que já erraram: corrigidas (estado final correto)
+ * vs. permanentes (seguiram incorretas).
+ */
+function splitErrorPositions(session: TypingSession): { corrected: number; permanent: number } {
+  let corrected = 0
+  let permanent = 0
+  for (const pos of session.errorPositions) {
+    if (session.entries.get(pos) === 'correct') corrected++
+    else permanent++
+  }
+  return { corrected, permanent }
+}
+
+/** Estatísticas por caractere esperado, ordenadas por quantidade de erros. */
+export function charStatsOf(session: TypingSession): CharStatEntry[] {
+  return [...session.charStats.entries()]
+    .map(([codePoint, stat]) => ({ char: String.fromCodePoint(codePoint), ...stat }))
+    .sort((a, b) => b.errors - a.errors || b.attempts - a.attempts)
+}
+
 /** Palavras concluídas: espaços alcançados (+ texto completo como última palavra). */
 export function completedWords(session: TypingSession): number {
   if (session.target.length === 0) return 0
@@ -60,8 +84,11 @@ export function computeMetrics(session: TypingSession, now: number): ResultMetri
 
   const wpm = minutes > 0 ? correctChars / CHARS_PER_WORD / minutes : 0
   const accuracy = gross > 0 ? (historicalCorrectKeystrokes(session) / gross) * 100 : 0
+  const { corrected, permanent } = splitErrorPositions(session)
 
   return {
+    correctedChars: corrected,
+    permanentErrors: permanent,
     wpm: Math.round(wpm * 10) / 10,
     accuracy: Math.round(accuracy * 10) / 10,
     netKeystrokes: Math.max(gross - errors, 0),
@@ -74,5 +101,6 @@ export function computeMetrics(session: TypingSession, now: number): ResultMetri
     charsCorrect: correctChars,
     charsTotal: session.target.length,
     elapsedMs: session.startedAt != null ? Math.max((session.finishedAt ?? now) - session.startedAt, 0) : 0,
+    charStats: charStatsOf(session),
   }
 }
