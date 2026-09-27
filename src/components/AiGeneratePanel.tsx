@@ -1,9 +1,16 @@
 import { useState } from 'react'
 import type { GroqConfig, LevelId, TextEntry } from '../types/domain'
-import { GroqError, generateTypingText } from '../services/groq'
+import {
+  GroqError,
+  generateTypingText,
+  DEFAULT_TEXT_FILTERS,
+  type TextFilters,
+  type TextSizeId,
+  type TextStyleId,
+} from '../services/groq'
 import { saveUserText } from '../storage/textsRepo'
 import { generateId } from '../utils/id'
-import { Button, Field, SelectControl } from './ui/controls'
+import { Button, Field, SelectControl, Switch } from './ui/controls'
 import { IconSparkles } from './ui/Icons'
 import { LEVELS } from '../logic/levels'
 
@@ -17,10 +24,25 @@ interface AiGeneratePanelProps {
 
 type AiState = 'idle' | 'loading' | 'error' | 'ready'
 
+/** Sugestões rápidas de tema: um clique preenche o campo de tema. */
+const TOPIC_SUGGESTIONS = [
+  'esportes',
+  'culinária',
+  'viagens',
+  'ciência',
+  'música brasileira',
+  'natureza',
+  'história do Brasil',
+  'tecnologia no dia a dia',
+]
+
 export function AiGeneratePanel(props: AiGeneratePanelProps) {
   const [state, setState] = useState<AiState>('idle')
   const [message, setMessage] = useState('')
   const [topic, setTopic] = useState('')
+  const [filters, setFilters] = useState<TextFilters>(DEFAULT_TEXT_FILTERS)
+
+  const patchFilters = (patch: Partial<TextFilters>) => setFilters((f) => ({ ...f, ...patch }))
 
   const generate = async () => {
     setState('loading')
@@ -30,6 +52,7 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
         config: props.groqConfig,
         level: props.level,
         topicHint: topic || undefined,
+        filters,
       })
       const entry: TextEntry = {
         id: generateId('ai'),
@@ -84,6 +107,30 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
             ))}
           </SelectControl>
         </Field>
+        <Field label="Tamanho" htmlFor="ai-size">
+          <SelectControl
+            id="ai-size"
+            value={filters.size}
+            onChange={(e) => patchFilters({ size: e.target.value as TextSizeId })}
+          >
+            <option value="short">Curto (~250 caracteres)</option>
+            <option value="medium">Médio (~450 caracteres)</option>
+            <option value="long">Longo (~800 caracteres)</option>
+          </SelectControl>
+        </Field>
+        <Field label="Estilo" htmlFor="ai-style">
+          <SelectControl
+            id="ai-style"
+            value={filters.style}
+            onChange={(e) => patchFilters({ style: e.target.value as TextStyleId })}
+          >
+            <option value="everyday">Cotidiano</option>
+            <option value="journalistic">Jornalístico</option>
+            <option value="literary">Literário</option>
+            <option value="technical">Técnico/Tecnologia</option>
+            <option value="formal">Formal</option>
+          </SelectControl>
+        </Field>
         {noKey ? (
           <Button onClick={props.onOpenSettings}>Configurar chave da API</Button>
         ) : (
@@ -92,6 +139,42 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
           </Button>
         )}
       </div>
+
+      <div className="ai-toggles">
+        <div className="form-row">
+          <label htmlFor="ai-accents">Acentos reforçados</label>
+          <Switch
+            checked={filters.accentHeavy}
+            onChange={(checked) => patchFilters({ accentHeavy: checked })}
+            label="Acentos reforçados"
+          />
+        </div>
+        <p className="form-help">Gera texto intencionalmente rico em á, ã, ç, ê, ó — bom treino para teclado ABNT.</p>
+        <div className="form-row">
+          <label htmlFor="ai-numbers">Com números e símbolos</label>
+          <Switch
+            checked={filters.withNumbers}
+            onChange={(checked) => patchFilters({ withNumbers: checked })}
+            label="Com números e símbolos"
+          />
+        </div>
+        <p className="form-help">Inclui datas, valores, percentuais e parênteses — treina a linha numérica do teclado.</p>
+      </div>
+
+      <div className="ai-topics" role="group" aria-label="Sugestões de tema">
+        <span className="ai-topics-label">Sugestões:</span>
+        {TOPIC_SUGGESTIONS.map((suggestion) => (
+          <button
+            key={suggestion}
+            type="button"
+            className={`chip${topic === suggestion ? ' chip-active' : ''}`}
+            onClick={() => setTopic(topic === suggestion ? '' : suggestion)}
+          >
+            {suggestion}
+          </button>
+        ))}
+      </div>
+
       {message && (
         <div className="status-message" data-kind={state === 'error' ? 'error' : 'success'} role="status">
           {message}
@@ -101,7 +184,7 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
         </div>
       )}
       <p className="form-help">
-        Requer conexão com a internet. O texto gerado usa o nível selecionado e é salvo automaticamente.
+        Requer conexão com a internet. O texto gerado usa o nível e os filtros selecionados e é salvo automaticamente.
       </p>
     </div>
   )

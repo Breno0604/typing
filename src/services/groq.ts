@@ -37,19 +37,68 @@ const LEVEL_HINTS: Record<LevelId, string> = {
 }
 
 const MIN_LENGTH = 220
-const MAX_LENGTH = 800
+const MAX_LENGTH = 900
 
-export function buildPrompt(level: Level, topicHint?: string): string {
+/** Tamanho alvo do texto gerado. */
+export type TextSizeId = 'short' | 'medium' | 'long'
+
+/** Estilo/tom do texto gerado. */
+export type TextStyleId = 'everyday' | 'journalistic' | 'literary' | 'technical' | 'formal'
+
+/** Opções extras de conteúdo do texto gerado. */
+export interface TextFilters {
+  size: TextSizeId
+  style: TextStyleId
+  /** Texto intencionalmente rico em acentos e cedilha (treino ABNT). */
+  accentHeavy: boolean
+  /** Inclui números, datas, valores e símbolos (treino da linha numérica). */
+  withNumbers: boolean
+}
+
+export const DEFAULT_TEXT_FILTERS: TextFilters = {
+  size: 'medium',
+  style: 'everyday',
+  accentHeavy: false,
+  withNumbers: false,
+}
+
+const SIZE_HINTS: Record<TextSizeId, string> = {
+  short: 'cerca de 250 caracteres (2 a 3 frases)',
+  medium: 'cerca de 450 caracteres (4 a 6 frases)',
+  long: 'cerca de 800 caracteres (7 a 9 frases)',
+}
+
+const STYLE_HINTS: Record<TextStyleId, string> = {
+  everyday: 'cotidiano, com linguagem simples e situações do dia a dia',
+  journalistic: 'jornalístico, com tom de notícia e vocabulário informativo',
+  literary: 'literário, com linguagem mais descritiva e imagética',
+  technical: 'técnico/tecnologia, com vocabulário da área (sem jargão em inglês)',
+  formal: 'formal, com construção cuidada e registro culto da língua',
+}
+
+export function buildPrompt(level: Level, topicHint?: string, filters: TextFilters = DEFAULT_TEXT_FILTERS): string {
   const topic = topicHint?.trim()
-  return [
+  const lines = [
     'Você gera textos em português do Brasil usados em testes de digitação.',
     'Regras obrigatórias:',
     '- Responda APENAS com o texto corrido, sem título, sem saudação, sem explicação.',
     '- Não use Markdown, listas, numeração, emojis, código, URLs ou nomes próprios estrangeiros.',
-    `- Escreva de 4 a 6 frases em parágrafo único, com ${LEVEL_HINTS[level.id]}.`,
+    `- Escreva em parágrafo único com ${SIZE_HINTS[filters.size]}, com ${LEVEL_HINTS[level.id]}.`,
     '- Use acentuação correta do português (á, à, â, ã, é, ê, í, ó, ô, õ, ú, ç).',
-    topic ? `- Tema sugerido: ${topic}.` : '- Escolha você mesmo um tema cotidiano, cultural ou científico variado.',
-  ].join('\n')
+  ]
+  if (filters.accentHeavy) {
+    lines.push('- Priorize palavras com acentos e cedilha (á, ã, ç, ê, é, ó, ô, õ): pelo menos um terço das palavras deve conter acento ou cedilha.')
+  }
+  if (filters.withNumbers) {
+    lines.push('- Inclua números naturais no texto: datas, horários, quantidades, valores em reais e medidas; use também alguns parênteses e percentuais.')
+  }
+  lines.push(
+    filters.style === 'everyday'
+      ? `- O texto deve ter estilo ${STYLE_HINTS[filters.style]}.`
+      : `- O texto deve ter estilo ${STYLE_HINTS[filters.style]}, mantendo frases corridas (sem listas).`,
+  )
+  lines.push(topic ? `- Tema sugerido: ${topic}.` : '- Escolha você mesmo um tema cotidiano, cultural ou científico variado.')
+  return lines.join('\n')
 }
 
 export function sanitizeGeneratedText(raw: string): string {
@@ -87,12 +136,13 @@ export interface GenerateTextParams {
   config: GroqConfig
   level: LevelId
   topicHint?: string
+  filters?: TextFilters
   signal?: AbortSignal
 }
 
 /** Gera um texto para digitação. Lança GroqError com mensagem amigável. */
 export async function generateTypingText(params: GenerateTextParams): Promise<string> {
-  const { config, level, topicHint, signal } = params
+  const { config, level, topicHint, filters = DEFAULT_TEXT_FILTERS, signal } = params
   if (!config.apiKey.trim()) {
     throw new GroqError('no-key', 'Configure sua chave da API do Groq para usar geração por IA.')
   }
@@ -102,7 +152,7 @@ export async function generateTypingText(params: GenerateTextParams): Promise<st
     response = await fetchWithTimeout({
       model: config.model,
       apiKey: config.apiKey.trim(),
-      prompt: buildPrompt(getLevel(level), topicHint),
+      prompt: buildPrompt(getLevel(level), topicHint, filters),
       signal,
     })
   } catch (err) {

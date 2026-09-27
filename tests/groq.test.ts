@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildPrompt, extractContent, sanitizeGeneratedText } from '../src/services/groq'
+import { buildPrompt, extractContent, sanitizeGeneratedText, DEFAULT_TEXT_FILTERS } from '../src/services/groq'
 import { durationLabel, durationSeconds, MAX_CUSTOM_SECONDS, MIN_CUSTOM_SECONDS } from '../src/logic/durations'
 import { getLevel } from '../src/logic/levels'
 import { generateId } from '../src/utils/id'
@@ -37,6 +37,40 @@ describe('buildPrompt', () => {
     const prompt = buildPrompt(getLevel('advanced'), 'cidades')
     expect(prompt).toContain('APENAS com o texto corrido')
     expect(prompt).toContain('cidades')
+  })
+
+  it('padrão usa tamanho médio e estilo cotidiano sem menção a números', () => {
+    const prompt = buildPrompt(getLevel('basic'))
+    expect(prompt).toContain('450 caracteres')
+    expect(prompt).toContain('cotidiano')
+    expect(prompt).not.toContain('Inclua números')
+    expect(prompt).not.toContain('cedilha (á, ã, ç, ê, é, ó, ô, õ)')
+  })
+
+  it('tamanho curto e longo mudam a meta de caracteres', () => {
+    expect(buildPrompt(getLevel('basic'), undefined, { ...DEFAULT_TEXT_FILTERS, size: 'short' })).toContain('250 caracteres')
+    expect(buildPrompt(getLevel('basic'), undefined, { ...DEFAULT_TEXT_FILTERS, size: 'long' })).toContain('800 caracteres')
+  })
+
+  it('filtros extras entram no prompt', () => {
+    const prompt = buildPrompt(getLevel('intermediate'), undefined, {
+      size: 'medium',
+      style: 'journalistic',
+      accentHeavy: true,
+      withNumbers: true,
+    })
+    expect(prompt).toContain('jornalístico')
+    expect(prompt).toContain('cedilha (á, ã, ç, ê, é, ó, ô, õ)')
+    expect(prompt).toContain('Inclua números')
+  })
+
+  it('estilo literário pede frases corridas', () => {
+    const prompt = buildPrompt(getLevel('intermediate'), undefined, {
+      ...DEFAULT_TEXT_FILTERS,
+      style: 'literary',
+    })
+    expect(prompt).toContain('literário')
+    expect(prompt).toContain('sem listas')
   })
 })
 
