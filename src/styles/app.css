@@ -623,6 +623,58 @@ textarea {
   padding: var(--space-6);
 }
 
+/*
+ * Variante com rodapé fixo (usada no modal de IA): o corpo rola e as ações
+ * (botão "Gerar texto com IA") ficam sempre visíveis na base do modal.
+ */
+.dialog-ai {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--space-6) 0 0;
+}
+
+.dialog-ai .dialog-title {
+  flex-shrink: 0;
+  margin: 0 var(--space-6) var(--space-5);
+}
+
+/* Corpo rolável: todo o conteúdo exceto o rodapé. */
+.dialog-ai > .ai-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--space-6) var(--space-5);
+}
+
+/* Rodapé fixo com o botão de geração, sempre visível na base do modal. */
+.ai-footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--panel-border);
+  background: var(--panel);
+}
+
+@media (max-width: 860px) {
+  .dialog-ai .dialog-title,
+  .dialog-ai > div:not(.ai-footer),
+  .ai-footer {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
+  .ai-footer {
+    justify-content: stretch;
+  }
+
+  .ai-footer .btn {
+    width: 100%;
+  }
+}
+
 .dialog-title {
   margin: 0 0 var(--space-5);
   font-size: var(--fs-lg);

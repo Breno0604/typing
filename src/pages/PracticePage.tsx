@@ -215,7 +215,12 @@ export function PracticeOverlays(props: {
         }}
       />
 
-      <Dialog open={props.showAi} onClose={props.onCloseAi} title="Gerar texto com IA (Groq)">
+      <Dialog
+        open={props.showAi}
+        onClose={props.onCloseAi}
+        title="Gerar texto com IA (Groq)"
+        className="dialog-ai"
+      >
         <AiGeneratePanel
           groqConfig={props.groqConfig}
           level="basic"

@@ -10,6 +10,8 @@ export function Dialog(props: {
   open: boolean
   title: string
   onClose: () => void
+  /** Classe extra para personalizar o layout do diálogo (ex.: rodapé fixo). */
+  className?: string
   children: ReactNode
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -57,7 +59,14 @@ export function Dialog(props: {
 
   return (
     <div className="dialog-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="dialog" role="dialog" aria-modal="true" aria-label={title} ref={ref} tabIndex={-1}>
+      <div
+        className={`dialog${props.className ? ` ${props.className}` : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        ref={ref}
+        tabIndex={-1}
+      >
         <h2 className="dialog-title">{title}</h2>
         {props.children}
       </div>

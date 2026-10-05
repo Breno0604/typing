@@ -81,7 +81,9 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
   const noKey = !props.groqConfig.apiKey.trim()
 
   return (
-    <div>
+    <>
+      {/* Corpo rolável do modal (o rodapé com o botão fica fora, sempre visível). */}
+      <div className="ai-body">
       <div className="ai-panel">
         <Field label="Tema (opcional)" htmlFor="ai-topic">
           <input
@@ -131,13 +133,6 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
             <option value="formal">Formal</option>
           </SelectControl>
         </Field>
-        {noKey ? (
-          <Button onClick={props.onOpenSettings}>Configurar chave da API</Button>
-        ) : (
-          <Button variant="primary" onClick={() => void generate()} disabled={state === 'loading'}>
-            <IconSparkles size={18} /> {state === 'loading' ? 'Gerando…' : 'Gerar texto com IA'}
-          </Button>
-        )}
       </div>
 
       <div className="ai-toggles">
@@ -186,6 +181,19 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
       <p className="form-help">
         Requer conexão com a internet. O texto gerado usa o nível e os filtros selecionados e é salvo automaticamente.
       </p>
-    </div>
+
+      </div>
+
+      {/* Rodapé fixo: o botão de gerar fica sempre visível, mesmo com o corpo em rolagem. */}
+      <div className="ai-footer">
+        {noKey ? (
+          <Button onClick={props.onOpenSettings}>Configurar chave da API</Button>
+        ) : (
+          <Button variant="primary" onClick={() => void generate()} disabled={state === 'loading'}>
+            <IconSparkles size={18} /> {state === 'loading' ? 'Gerando…' : 'Gerar texto com IA'}
+          </Button>
+        )}
+      </div>
+    </>
   )
 }
