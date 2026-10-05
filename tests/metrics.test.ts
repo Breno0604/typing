@@ -27,11 +27,13 @@ describe('sessionReducer', () => {
     expect(s.startedAt).toBe(1000)
   })
 
-  it('registers errors permanently', () => {
+  it('registers errors permanently (mesmo antes do início do cronômetro)', () => {
     let s = createSession('test', 'abc')
-    s = typeString(s, 'x', 0) // erro
-    s = backspace(s, 150)
-    s = typeString(s, 'a', 200)
+    s = typeString(s, 'x', 0) // erro antes da 1ª correta: cronômetro não abre
+    expect(s.status).toBe('idle')
+    s = backspace(s, 150) // correção permitida antes do início
+    s = typeString(s, 'a', 200) // 1ª correta: inicia
+    expect(s.startedAt).toBe(200)
     expect(s.errors).toBe(1) // erro permanece
     expect(s.corrections).toBe(1)
     expect(s.grossKeystrokes).toBe(2)
@@ -81,13 +83,13 @@ describe('sessionReducer', () => {
 })
 
 describe('metrics (hybrid rules confirmed by user)', () => {
-  it('wpm uses positional correct chars over minutes', () => {
+  it('wpm uses positional correct chars over effective minutes', () => {
     let s = createSession('test', 'a'.repeat(30))
     s = typeString(s, 'a'.repeat(30), 0)
     s = reduceTyping(s, { type: 'finish', reason: 'text-completed' }, 15000).session
     const m = computeMetrics(s, 15000)
-    // 30 chars / 5 = 6 words in 0.25 min = 24 wpm
-    expect(m.wpm).toBe(24)
+    // tempo efetivo = 2,9s (teclas 0..2900); 6 palavras / (2,9/60) ≈ 124,1
+    expect(m.wpm).toBeCloseTo(124.1, 0)
   })
 
   it('accuracy uses historical keystrokes', () => {
@@ -168,6 +170,100 @@ describe('metrics (hybrid rules confirmed by user)', () => {
     s = typeString(s, 'çáê', 0)
     const m = computeMetrics(s, 0)
     expect(m.charsCorrect).toBe(3)
+  })
+})
+
+describe('cronômetro de tempo efetivo (pausa por inatividade)', () => {
+  it('não inicia a contagem com tecla incorreta', () => {
+    let s = createSession('test', 'abc')
+    s = typeString(s, 'x', 0) // erro antes da primeira correta
+    expect(s.startedAt).toBeNull()
+    const m = computeMetrics(s, 60_000) // um minuto depois
+    expect(m.elapsedMs).toBe(0)
+  })
+
+  it('inicia a contagem na primeira tecla correta', () => {
+    let s = createSession('test', 'abc')
+    s = typeString(s, 'a', 5_000)
+    expect(s.startedAt).toBe(5_000)
+  })
+
+  it('display corre continuamente enquanto ativo e congela no valor da última tecla na pausa', () => {
+    let s = createSession('test', 'abc')
+    s = typeString(s, 'ab', 1_000) // teclas em 1000 e 1100 → 100ms acumulados
+    // 1s depois da última tecla, SEM digitar: display corre continuamente
+    let m = computeMetrics(s, 2_100)
+    expect(m.elapsedMs).toBe(1_100) // 100 acumulados + 1000 correntes
+    // 2,9s depois da última tecla (dentro da janela de 3s): segue correndo
+    m = computeMetrics(s, 4_000)
+    expect(m.elapsedMs).toBe(3_000) // 100 + 2900
+    // 10s depois: pausa detectada; volta e congela no valor da última tecla
+    m = computeMetrics(s, 11_000)
+    expect(m.elapsedMs).toBe(100) // os ~3s de janela não permanecem contabilizados
+  })
+
+  it('retomada após pausa continua a partir do valor congelado', () => {
+    let s = createSession('test', 'abcd')
+    s = typeString(s, 'ab', 1_000) // 100ms acumulados
+    s = typeString(s, 'c', 20_000) // pausa descartada; retoma na posição
+    s = typeString(s, 'd', 20_500) // 500ms depois: corrente
+    const m = computeMetrics(s, 20_800)
+    expect(m.elapsedMs).toBe(900) // 100 (inicial) + 0 (pausa) + 500 (c→d) + 300 correntes
+  })
+
+  it('tecla correta após pausa retoma e soma só o trecho novo', () => {
+    let s = createSession('test', 'abcd')
+    s = typeString(s, 'ab', 1_000) // 100ms
+    s = typeString(s, 'c', 31_000) // pausa descartada; c soma 0
+    s = typeString(s, 'd', 31_400) // c→d soma 400ms
+    const m = computeMetrics(s, 40_000)
+    expect(m.elapsedMs).toBe(500) // 100 + 0 + 400
+  })
+
+  it('backspace corrige caractere correto sem retomar o tempo', () => {
+    let s = createSession('test', 'abc')
+    s = typeString(s, 'ab', 1_000)
+    s = backspace(s, 20_000) // último 'b' está correto: não retoma
+    expect(s.position).toBe(1)
+    expect(s.lastActiveAt).toBe(1_100)
+    const m = computeMetrics(s, 25_000)
+    expect(m.elapsedMs).toBe(100)
+  })
+
+  it('backspace que corrige erro retoma a contagem', () => {
+    let s = createSession('test', 'abc')
+    s = typeString(s, 'ax', 1_000) // 'x' errado em 1100
+    s = backspace(s, 20_000) // corrige erro: retoma (pausa descartada)
+    expect(s.lastActiveAt).toBe(20_000)
+    s = typeString(s, 'b', 20_300)
+    const m = computeMetrics(s, 20_300)
+    expect(m.elapsedMs).toBe(300) // 100 (a→x) + 0 (pausa) + 200 (bs→b)
+  })
+
+  it('backspace antes da primeira correta não inicia o cronômetro', () => {
+    let s = createSession('test', 'abc')
+    s = typeString(s, 'x', 0) // erro
+    s = backspace(s, 500) // correção sem iniciar
+    expect(s.startedAt).toBeNull()
+    expect(s.position).toBe(0)
+    expect(s.corrections).toBe(1)
+  })
+
+  it('finish congela no último tempo efetivo', () => {
+    let s = createSession('test', 'abc')
+    s = typeString(s, 'ab', 1_000)
+    s = reduceTyping(s, { type: 'finish', reason: 'manual' }, 15_000).session
+    const m = computeMetrics(s, 15_000)
+    expect(m.elapsedMs).toBe(100) // valor da última tecla
+  })
+
+  it('wpm usa o tempo efetivo', () => {
+    let s = createSession('test', 'a'.repeat(30))
+    s = typeString(s, 'a'.repeat(30), 0)
+    s = reduceTyping(s, { type: 'finish', reason: 'text-completed' }, 60_000).session
+    const m = computeMetrics(s, 60_000)
+    // 2,9s efetivos: 6 palavras / (2,9/60) ≈ 124,1 wpm
+    expect(m.wpm).toBeCloseTo(124.1, 0)
   })
 })
 

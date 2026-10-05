@@ -82,6 +82,7 @@ export function buildPrompt(level: Level, topicHint?: string, filters: TextFilte
     'Você gera textos em português do Brasil usados em testes de digitação.',
     'Regras obrigatórias:',
     '- Responda APENAS com o texto corrido, sem título, sem saudação, sem explicação.',
+    '- Responda exclusivamente em português do Brasil, mesmo que o tema contenha palavras em outras línguas.',
     '- Não use Markdown, listas, numeração, emojis, código, URLs ou nomes próprios estrangeiros.',
     `- Escreva em parágrafo único com ${SIZE_HINTS[filters.size]}, com ${LEVEL_HINTS[level.id]}.`,
     '- Use acentuação correta do português (á, à, â, ã, é, ê, í, ó, ô, õ, ú, ç).',
@@ -173,11 +174,13 @@ export async function generateTypingText(params: GenerateTextParams): Promise<st
 
   if (!content) {
     // Modelos racionadores podem gastar todo o orçamento de tokens em raciocínio
-    // e não produzir texto. Erro distinto orienta o usuário a ajustar o modelo.
+    // e não produzir texto. O campo `reasoning` NÃO é usado como texto: é o
+    // pensamento interno do modelo (geralmente em inglês, metalinguagem — não
+    // serve para digitação). Erro distinto orienta o usuário a ajustar o modelo.
     if (hasReasoning || finishReason === 'length') {
       throw new GroqError(
         'invalid-response',
-        `O modelo "${config.model}" gastou o limite de tokens sem produzir texto (modelo de raciocínio?). Escolha outro modelo nas configurações (ex.: llama-3.3-70b-versatile) e tente novamente.`,
+        `O modelo "${config.model}" não produziu texto utilizável (modelo de raciocínio?). Escolha outro modelo nas configurações (ex.: llama-3.3-70b-versatile) e tente novamente.`,
       )
     }
     throw new GroqError('invalid-response', 'A IA não retornou um texto utilizável. Tente novamente.')
@@ -266,8 +269,10 @@ export function extractContent(data: unknown): ExtractedResponse {
   }
   const reasoning = choice.message?.reasoning
   if (typeof reasoning === 'string' && reasoning.trim()) {
+    // O reasoning é o pensamento interno do modelo (tipicamente em inglês);
+    // é sinalizado, mas NUNCA retornado como conteúdo utilizável.
     return {
-      content: reasoning,
+      content: null,
       finishReason: typeof choice.finish_reason === 'string' ? choice.finish_reason : null,
       hasReasoning: true,
     }

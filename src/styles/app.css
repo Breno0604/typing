@@ -57,8 +57,8 @@
 }
 
 :root[data-theme='light'] {
-  --bg: #aebad4;
-  --bg-gradient: linear-gradient(180deg, #b7c2da 0%, #a5b1cc 100%);
+  --bg: #d7dae0;
+  --bg-gradient: linear-gradient(180deg, #dcdfe4 0%, #d2d6dd 100%);
   --panel: #e9edf6;
   --panel-border: #c3ccdf;
   --text-area: #dde3f0;
@@ -217,6 +217,13 @@ textarea {
   color: var(--error);
 }
 
+/* Cronômetro em pausa por inatividade: apagado, borda tracejada. */
+.timer[data-paused='true'] {
+  opacity: 0.45;
+  box-shadow: none;
+  border-style: dashed;
+}
+
 /* Linha superior minimalista da tela de digitação (relógio centralizado). */
 .typing-top {
   display: flex;
@@ -373,9 +380,10 @@ textarea {
   color: var(--error);
 }
 
-/* Caractere atual: cor + sublinhado estáticos (sem animação), personalizáveis. */
+/* Caractere atual (a letra a ser digitada): preto, negrito e sublinhado. */
 .char[data-state='current'] {
-  color: var(--caret-color, var(--accent));
+  color: #0a0a0a;
+  font-weight: 700;
   border-bottom-color: var(--caret-underline, var(--accent));
 }
 

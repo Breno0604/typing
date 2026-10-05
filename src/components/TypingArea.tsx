@@ -11,10 +11,19 @@ interface TypingAreaProps {
  * Exibe o texto caractere por caractere com estados:
  * pendente, correto, incorreto e atual (cursor).
  * Renderiza apenas a janela visível em textos longos (performance).
+ *
+ * Estabilidade visual: o início da janela é QUANTIZADO em blocos de 100
+ * caracteres. Sem isso, a janela deslizaria a cada tecla (position - 200)
+ * e o texto inteiro se reajustaria continuamente, o que confunde a leitura.
+ * Com a quantização, o texto fica estável durante a digitação e avança em
+ * passos discretos (a cada 100 caracteres), sempre com o cursor visível.
  */
 export const TypingArea = memo(function TypingArea({ session, active }: TypingAreaProps) {
   const WINDOW = 600
-  const start = Math.max(0, session.position - 200)
+  const BACKSPACE_MARGIN = 200
+  const BLOCK = 100
+  const rawStart = Math.max(0, session.position - BACKSPACE_MARGIN)
+  const start = Math.floor(rawStart / BLOCK) * BLOCK
   const end = Math.min(session.target.length, start + WINDOW)
   const slice = useMemo(() => session.target.slice(start, end), [session.target, start, end])
 

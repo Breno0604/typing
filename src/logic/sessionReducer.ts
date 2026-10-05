@@ -1,11 +1,19 @@
 import type { FinishReason, SessionMode } from '../types/domain'
 import type { CharState, CharStat, TypingEvent, TypingSession } from '../types/typing'
 import { toCodePoints } from './texts'
+import { effectiveDelta } from './timing'
 
 /**
  * Máquina de estados da sessão de digitação.
  * Fluxo previsível: idle -> running -> finished.
  * Reducer puro: sem efeitos colaterais, fácil de testar.
+ *
+ * Cronômetro de tempo efetivo:
+ * - Inicia na primeira tecla CORRETA (erros antes disso não abrem a contagem).
+ * - Cada ação válida soma o intervalo desde a última ação, desde que dentro
+ *   da janela de 3s; intervalos maiores são pausas e não contam.
+ * - Ações válidas: tecla correta na posição atual; Backspace que corrige o
+ *   último caractere digitado incorretamente.
  */
 
 export function createSession(mode: SessionMode, text: string): TypingSession {
@@ -17,6 +25,8 @@ export function createSession(mode: SessionMode, text: string): TypingSession {
     position: 0,
     startedAt: null,
     finishedAt: null,
+    lastActiveAt: null,
+    activeMs: 0,
     finishReason: null,
     grossKeystrokes: 0,
     errors: 0,
@@ -53,16 +63,46 @@ function reduceCharacter(state: TypingSession, codePoint: number, now: number) {
     return { session: state }
   }
 
+  const expected = state.target[state.position]
+  const correct = codePoint === expected
+
+  // Erros antes da primeira correta não abrem o cronômetro (mas contam erro
+  // e avançam a posição — o Backspace pode corrigi-los sem iniciar a contagem).
+  if (state.status === 'idle' && !correct) {
+    const preSession: TypingSession = {
+      ...state,
+      grossKeystrokes: state.grossKeystrokes + 1,
+      errors: state.errors + 1,
+      errorPositions: new Set(state.errorPositions),
+      charStats: new Map(state.charStats),
+    }
+    preSession.errorPositions.add(state.position)
+    const preStat = preSession.charStats.get(expected) ?? { attempts: 0, errors: 0 }
+    preSession.charStats.set(expected, {
+      attempts: preStat.attempts + 1,
+      errors: preStat.errors + 1,
+    })
+    preSession.entries = new Map(state.entries)
+    preSession.entries.set(state.position, 'incorrect')
+    preSession.position = state.position + 1
+    return { session: preSession, keystroke: { correct: false, started: false } }
+  }
+
+  // Só tecla CORRETA é ação válida de digitação: inicia/retoma a contagem.
+  // Teclas incorretas contam erro, mas não movem a âncora de tempo.
+  const anchor = state.lastActiveAt ?? state.startedAt ?? now
+  const delta = correct ? effectiveDelta(anchor, now) : 0
   const started = state.status === 'idle'
+
   const session: TypingSession = {
     ...state,
     status: 'running',
     startedAt: started ? now : state.startedAt,
+    lastActiveAt: correct ? now : state.lastActiveAt,
+    activeMs: state.activeMs + delta,
     grossKeystrokes: state.grossKeystrokes + 1,
   }
 
-  const expected = state.target[state.position]
-  const correct = codePoint === expected
   if (!correct) {
     session.errors = state.errors + 1
     session.errorPositions = new Set(state.errorPositions)
@@ -89,13 +129,43 @@ function reduceCharacter(state: TypingSession, codePoint: number, now: number) {
 }
 
 function reduceBackspace(state: TypingSession, now: number) {
-  if (state.status === 'finished' || state.position === 0 || state.status !== 'running') {
+  // Permitido também antes da primeira tecla correta (status 'idle' com
+  // posição avançada por erros): o usuário pode corrigir sem iniciar o cronômetro.
+  if (state.status === 'finished' || state.position === 0) {
     return { session: state }
   }
 
+  // Backspace só é ação válida de retomada quando corrige o último caractere
+  // digitado INCORRETAMENTE. Corrigir caractere correto não retoma a contagem.
+  const lastState = state.entries.get(state.position - 1)
+  if (lastState !== 'incorrect') {
+    return {
+      session: {
+        ...state,
+        corrections: state.corrections + 1,
+        position: state.position - 1,
+      },
+    }
+  }
+
+  // Antes do início do cronômetro: corrige sem haver tempo a acumular.
+  if (state.startedAt == null) {
+    return {
+      session: {
+        ...state,
+        corrections: state.corrections + 1,
+        position: state.position - 1,
+      },
+    }
+  }
+
+  // Retomada válida: acumula tempo efetivo e move a âncora de atividade.
+  const anchor = state.lastActiveAt ?? state.startedAt
   const session: TypingSession = {
     ...state,
     corrections: state.corrections + 1,
+    lastActiveAt: now,
+    activeMs: state.activeMs + effectiveDelta(anchor, now),
     position: state.position - 1,
   }
   return { session }
@@ -103,11 +173,14 @@ function reduceBackspace(state: TypingSession, now: number) {
 
 function reduceFinish(state: TypingSession, reason: FinishReason, now: number) {
   if (state.status !== 'running') return { session: state }
+  // Congela no tempo efetivo: o período entre a última tecla e o fim não conta.
+  const anchor = state.lastActiveAt ?? state.startedAt ?? now
   const session: TypingSession = {
     ...state,
     status: 'finished',
     finishedAt: now,
     finishReason: reason,
+    activeMs: state.activeMs + effectiveDelta(anchor, now),
   }
   return { session }
 }

@@ -3,6 +3,7 @@ import { useGroqConfig } from './hooks/useSettings'
 import { PracticePage, PracticeOverlays } from './pages/PracticePage'
 import { StatsPage } from './pages/StatsPage'
 import { IconChart, IconFileText, IconKeyboard, IconSparkles } from './components/ui/Icons'
+import type { TextEntry } from './types/domain'
 
 type Page = 'practice' | 'stats'
 
@@ -11,6 +12,10 @@ export default function App() {
   const [page, setPage] = useState<Page>('practice')
   const [showTexts, setShowTexts] = useState(false)
   const [showAi, setShowAi] = useState(false)
+  // Texto selecionado vive aqui (e não no PracticePage) para que "Usar"
+  // (Meus textos) e "usar texto gerado" (IA) — diálogos montados no App —
+  // consigam de fato selecionar o texto da prática.
+  const [selectedText, setSelectedText] = useState<TextEntry | null>(null)
 
   // Tema claro fixo: única identidade visual do MVP.
   useEffect(() => {
@@ -57,7 +62,7 @@ export default function App() {
       </header>
 
       {page === 'practice' ? (
-        <PracticePage />
+        <PracticePage selectedText={selectedText} onSelectText={setSelectedText} />
       ) : (
         <StatsPage onBack={() => setPage('practice')} />
       )}
@@ -70,6 +75,7 @@ export default function App() {
         onCloseAi={() => setShowAi(false)}
         groqConfig={groqConfig}
         onGroqChange={updateGroqConfig}
+        onUseText={setSelectedText}
       />
     </div>
   )

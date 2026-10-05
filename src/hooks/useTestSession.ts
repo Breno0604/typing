@@ -4,9 +4,9 @@ import { createSession, reduceTyping } from '../logic/sessionReducer'
 import { computeMetrics } from '../logic/metrics'
 import type { TypingSession } from '../types/typing'
 import type { ResultMetrics } from '../types/domain'
-import { playErrorSound, playKeySound, warmUpAudio } from '../services/audio'
 import { saveResult } from '../storage/resultsRepo'
 import { formatElapsed } from './useTimer'
+import { isPaused } from '../logic/timing'
 import { generateId } from '../utils/id'
 
 export interface KeystrokeResult {
@@ -19,8 +19,6 @@ interface UseTestSessionParams {
   text: TextEntry | null
   /** Segundos; null = sem limite. */
   duration: number | null
-  soundEnabled: boolean
-  soundVolume: number
 }
 
 /**
@@ -32,7 +30,7 @@ interface UseTestSessionParams {
  * depender de batching do React. Efeitos colaterais (som, salvar)
  * ocorrem fora de updaters de estado.
  */
-export function useTestSession({ mode, text, duration, soundEnabled, soundVolume }: UseTestSessionParams) {
+export function useTestSession({ mode, text, duration }: UseTestSessionParams) {
   const [session, setSessionState] = useState<TypingSession>(() => createSession(mode, text?.content ?? ''))
   const [finishedMetrics, setFinishedMetrics] = useState<ResultMetrics | null>(null)
   const [clockTick, setClockTick] = useState(0)
@@ -102,17 +100,13 @@ export function useTestSession({ mode, text, duration, soundEnabled, soundVolume
       const { session: next, keystroke } = reduceTyping(prev, { type: 'character', codePoint }, now)
       if (!keystroke) return { correct: false, consumed: false }
       setSession(next)
-      if (soundEnabled) {
-        if (keystroke.correct) playKeySound(soundVolume)
-        else playErrorSound(soundVolume)
-      }
       // Fim por conclusão do texto (teste, treino e sem limite).
       if (next.position >= next.target.length) {
         finish('text-completed')
       }
       return { correct: keystroke.correct, consumed: true }
     },
-    [soundEnabled, soundVolume, finish, setSession],
+    [finish, setSession],
   )
 
   const handleBackspace = useCallback((): KeystrokeResult => {
@@ -143,7 +137,9 @@ export function useTestSession({ mode, text, duration, soundEnabled, soundVolume
     return () => window.clearTimeout(id)
   }, [session.status, startedAt, duration, finish])
 
-  // Clock fluido: tick a cada 100ms enquanto em execução (timestamp real).
+  // Clock fluido: tick a cada 100ms a partir da primeira tecla correta.
+  // Durante a pausa por inatividade o tick continua, mas o tempo exibido
+  // congela (effectiveElapsedMs para de somar após 3s sem teclar).
   useEffect(() => {
     if (session.status !== 'running' || session.startedAt == null) return
     const id = window.setInterval(() => setClockTick((t) => t + 1), 100)
@@ -163,7 +159,6 @@ export function useTestSession({ mode, text, duration, soundEnabled, soundVolume
 
       if (event.key.length === 1) {
         event.preventDefault()
-        warmUpAudio()
         return handleCharacter(event.key.codePointAt(0)!)
       }
 
@@ -180,27 +175,28 @@ export function useTestSession({ mode, text, duration, soundEnabled, soundVolume
 
   const liveMetrics = useMemo(() => {
     const metrics = computeMetrics(session, performance.now())
-    // Piso de 1s no display ao vivo: evita WPM absurdo nos primeiros caracteres.
-    // (Fórmula oficial e resultado final ficam intocados — ver computeMetrics.)
+    // Piso de 1s SÓ no cálculo do WPM ao vivo: evita WPM absurdo nos primeiros
+    // caracteres. O tempo exibido permanece fiel (começa em 00:00).
     if (session.status === 'running') {
       const elapsedMs = Math.max(metrics.elapsedMs, 1000)
       const wpm = (metrics.charsCorrect / 5) / (elapsedMs / 60000)
-      return { ...metrics, wpm: Math.round(Math.min(wpm, metrics.wpm) * 10) / 10, elapsedMs }
+      return { ...metrics, wpm: Math.round(Math.min(wpm, metrics.wpm) * 10) / 10 }
     }
     return metrics
-    // clockTick atualiza o tempo decorrido exibido em tempo real.
+    // clockTick atualiza o tempo efetivo exibido em tempo real (congela na pausa).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, clockTick])
-  const clockMs =
-    session.status === 'running' && session.startedAt != null
-      ? performance.now() - session.startedAt
-      : liveMetrics.elapsedMs
+  // Cronômetro exibido: tempo EFETIVO — congela no valor da última tecla
+  // quando o usuário para de digitar (pausa por inatividade de 3s).
+  const clockMs = liveMetrics.elapsedMs
+  const paused = isPaused(session, performance.now())
 
   return {
     session,
     liveMetrics,
     finishedMetrics,
     clockMs,
+    paused,
     elapsedLabel: formatElapsed(liveMetrics.elapsedMs),
     handleKeyDown,
     reset,

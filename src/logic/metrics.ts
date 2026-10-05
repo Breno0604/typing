@@ -1,6 +1,7 @@
 import type { CharStatEntry, ResultMetrics } from '../types/domain'
 import type { TypingSession } from '../types/typing'
 import { countSpaces } from './texts'
+import { effectiveElapsedMs } from './timing'
 
 /**
  * Camada única de cálculo de métricas.
@@ -26,10 +27,9 @@ import { countSpaces } from './texts'
 
 const CHARS_PER_WORD = 5
 
+/** Minutos EFETIVOS (excluem pausas por inatividade) usados no WPM. */
 function minutesFrom(session: TypingSession, now: number): number {
-  if (session.startedAt == null) return 0
-  const end = session.finishedAt ?? now
-  return Math.max((end - session.startedAt) / 60000, 0)
+  return effectiveElapsedMs(session, now) / 60000
 }
 
 /** Caracteres corretos na posição atual (correções refletem o estado real). */
@@ -100,7 +100,7 @@ export function computeMetrics(session: TypingSession, now: number): ResultMetri
     wordsTotal: countSpaces(session.target) + 1,
     charsCorrect: correctChars,
     charsTotal: session.target.length,
-    elapsedMs: session.startedAt != null ? Math.max((session.finishedAt ?? now) - session.startedAt, 0) : 0,
+    elapsedMs: effectiveElapsedMs(session, now),
     charStats: charStatsOf(session),
   }
 }

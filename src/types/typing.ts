@@ -19,10 +19,17 @@ export interface TypingSession {
   entries: Map<number, CharState>
   /** Posição atual do cursor (índice no array target). */
   position: number
-  /** Timestamp (performance.now) do primeiro caractere; null se não iniciado. */
+  /**
+   * Timestamp (performance.now) da primeira tecla CORRETA (início da contagem);
+   * null se a sessão não iniciou de fato.
+   */
   startedAt: number | null
   /** Timestamp de finalização; null se em andamento. */
   finishedAt: number | null
+  /** Última ação válida do usuário (tecla correta ou Backspace que corrige um caractere incorreto); null antes da primeira. */
+  lastActiveAt: number | null
+  /** Tempo efetivo acumulado (ms), sem períodos de inatividade. */
+  activeMs: number
   finishReason: FinishReason | null
   /** Toques brutos: tentativas de caracteres. */
   grossKeystrokes: number

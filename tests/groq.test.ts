@@ -39,6 +39,11 @@ describe('buildPrompt', () => {
     expect(prompt).toContain('cidades')
   })
 
+  it('exige resposta em português do Brasil', () => {
+    const prompt = buildPrompt(getLevel('basic'))
+    expect(prompt).toContain('português do Brasil')
+  })
+
   it('padrão usa tamanho médio e estilo cotidiano sem menção a números', () => {
     const prompt = buildPrompt(getLevel('basic'))
     expect(prompt).toContain('450 caracteres')
@@ -85,17 +90,17 @@ describe('extractContent', () => {
     expect(extractContent(data).finishReason).toBe('length')
   })
 
-  it('usa o campo reasoning como fallback quando content vem vazio', () => {
-    const data = { choices: [{ message: { content: '', reasoning: 'texto despejado no raciocínio' } }] }
+  it('NÃO usa o campo reasoning como conteúdo (é metalinguagem, geralmente em inglês)', () => {
+    const data = { choices: [{ message: { content: '', reasoning: 'We need to output a single paragraph' } }] }
     const r = extractContent(data)
-    expect(r.content).toBe('texto despejado no raciocínio')
+    expect(r.content).toBeNull()
     expect(r.hasReasoning).toBe(true)
   })
 
-  it('sinaliza hasReasoning no fallback e finish_reason preservado', () => {
+  it('preserva finish_reason quando só há reasoning', () => {
     const data = { choices: [{ finish_reason: 'length', message: { reasoning: 'pensou e escreveu no reasoning' } }] }
     const r = extractContent(data)
-    expect(r.content).toBe('pensou e escreveu no reasoning')
+    expect(r.content).toBeNull()
     expect(r.hasReasoning).toBe(true)
     expect(r.finishReason).toBe('length')
   })

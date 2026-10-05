@@ -9,6 +9,7 @@ import { Dialog } from '../components/ui/Dialog'
 import { Button } from '../components/ui/controls'
 import type { GroqConfig } from '../types/domain'
 import { useUserTexts } from '../hooks/useUserTexts'
+import { formatElapsed } from '../hooks/useTimer'
 import {
   DEFAULT_SUBTOPIC,
   DEFAULT_TOPIC,
@@ -22,7 +23,11 @@ import {
  * (botão "Trocar texto" → cards de tema → assunto). Sem modos, sem
  * cronômetro configurável, sem painéis de configuração.
  */
-export function PracticePage() {
+export function PracticePage(props: {
+  /** Texto selecionado via "Usar" (Meus textos) ou IA; prioridade máxima. */
+  selectedText: TextEntry | null
+  onSelectText: (entry: TextEntry | null) => void
+}) {
   const userTexts = useUserTexts()
 
   // Navegação opcional de troca de texto: lista de temas ou textos do tema.
@@ -45,18 +50,18 @@ export function PracticePage() {
     return [...presets, ...userAndAiTexts]
   }, [userAndAiTexts])
 
-  const currentText = useMemo(
-    () => allTexts.find((t) => t.id === selectedTextId) ?? null,
-    [allTexts, selectedTextId],
-  )
+  // Prioridade: texto usado via "Usar"/IA (objeto completo, sem depender de
+  // listas locais) → escolha por tema (id local) → preset padrão.
+  const currentText = useMemo(() => {
+    if (props.selectedText) return props.selectedText
+    return allTexts.find((t) => t.id === selectedTextId) ?? null
+  }, [props.selectedText, allTexts, selectedTextId])
 
   // Sessão única: termina ao completar o texto (ou Finalizar). Sem duração.
   const session = useTestSession({
     mode: 'practice',
     text: currentText,
     duration: null,
-    soundEnabled: true,
-    soundVolume: 0.5,
   })
 
   const keyHandlerRef = useRef(session.handleKeyDown)
@@ -78,6 +83,8 @@ export function PracticePage() {
   const retrySameText = () => session.reset()
 
   const confirmText = (id: string) => {
+    const entry = allTexts.find((t) => t.id === id) ?? null
+    props.onSelectText(entry) // limpa a seleção externa: passa a valer a escolha local
     setSelectedTextId(id)
     setChoosing(false)
     session.reset()
@@ -152,8 +159,17 @@ export function PracticePage() {
           </div>
         </>
       ) : (
-        /* Digitação: só o texto. */
+        /* Digitação: cronômetro de tempo efetivo + texto. */
         <>
+          <div className="typing-top">
+            <span
+              className="timer"
+              data-paused={session.running && session.paused}
+              aria-label={session.paused ? 'Cronômetro em pausa por inatividade' : 'Cronômetro da sessão'}
+            >
+              {formatElapsed(session.clockMs)}
+            </span>
+          </div>
           <div className="typing-card">
             <TypingArea session={session.session} active={!session.finished} />
           </div>
@@ -179,6 +195,8 @@ export function PracticeOverlays(props: {
   onCloseAi: () => void
   groqConfig: GroqConfig
   onGroqChange: (patch: Partial<GroqConfig>) => void
+  /** Seleciona o texto na prática (vindo de "Usar" ou de texto gerado por IA). */
+  onUseText: (entry: TextEntry) => void
 }) {
   const userTexts = useUserTexts()
 
@@ -192,8 +210,7 @@ export function PracticeOverlays(props: {
         onUpdate={userTexts.update}
         onDelete={userTexts.remove}
         onUse={(t) => {
-          // Seleciona o texto usado e volta para a prática: como a escolha
-          // vive no PracticePage, aqui apenas fechamos o gerenciador.
+          props.onUseText(t)
           props.onCloseTexts()
         }}
       />
@@ -205,7 +222,10 @@ export function PracticeOverlays(props: {
           onLevelChange={() => {
             /* Nível fixo no MVP. */
           }}
-          onUseText={() => props.onCloseAi()}
+          onUseText={(entry) => {
+            props.onUseText(entry)
+            props.onCloseAi()
+          }}
           onOpenSettings={() => {
             /* Sem modal de sistema no MVP; a chave é configurada pelo prompt. */
           }}
