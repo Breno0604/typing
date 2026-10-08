@@ -19,7 +19,8 @@ interface AiGeneratePanelProps {
   level: LevelId
   onLevelChange: (level: LevelId) => void
   onUseText: (entry: TextEntry) => void
-  onOpenSettings: () => void
+  /** Salva um patch na configuração do Groq (ex.: a chave da API). */
+  onGroqChange: (patch: Partial<GroqConfig>) => void
 }
 
 type AiState = 'idle' | 'loading' | 'error' | 'ready'
@@ -41,6 +42,18 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
   const [message, setMessage] = useState('')
   const [topic, setTopic] = useState('')
   const [filters, setFilters] = useState<TextFilters>(DEFAULT_TEXT_FILTERS)
+  const [showKeyForm, setShowKeyForm] = useState(false)
+  const [keyDraft, setKeyDraft] = useState('')
+
+  const saveKey = () => {
+    const trimmed = keyDraft.trim()
+    if (!trimmed) return
+    props.onGroqChange({ apiKey: trimmed })
+    setKeyDraft('')
+    setShowKeyForm(false)
+    setMessage('Chave salva. Agora você pode gerar o texto.')
+    setState('idle')
+  }
 
   const patchFilters = (patch: Partial<TextFilters>) => setFilters((f) => ({ ...f, ...patch }))
 
@@ -80,10 +93,42 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
 
   const noKey = !props.groqConfig.apiKey.trim()
 
+  // Aviso de chave ausente com o formulário de configuração inline.
+  const keyNotice = noKey && (
+    <div className="ai-key-setup">
+      <p className="form-help">
+        Para gerar textos, configure sua chave gratuita da API do Groq ({' '}<a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com/keys</a>). Ela fica salva apenas neste navegador.
+      </p>
+      {showKeyForm ? (
+        <div className="ai-key-form">
+          <input
+            className="text-input"
+            type="password"
+            placeholder="gsk_..."
+            value={keyDraft}
+            onChange={(e) => setKeyDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.stopPropagation()
+                saveKey()
+              }
+            }}
+            autoFocus
+          />
+          <Button variant="primary" onClick={saveKey}>Salvar chave</Button>
+          <Button onClick={() => setShowKeyForm(false)}>Cancelar</Button>
+        </div>
+      ) : (
+        <Button onClick={() => setShowKeyForm(true)}>Configurar chave da API</Button>
+      )}
+    </div>
+  )
+
   return (
     <>
       {/* Corpo rolável do modal (o rodapé com o botão fica fora, sempre visível). */}
       <div className="ai-body">
+      {keyNotice}
       <div className="ai-panel">
         <Field label="Tema (opcional)" htmlFor="ai-topic">
           <input
@@ -186,13 +231,9 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
 
       {/* Rodapé fixo: o botão de gerar fica sempre visível, mesmo com o corpo em rolagem. */}
       <div className="ai-footer">
-        {noKey ? (
-          <Button onClick={props.onOpenSettings}>Configurar chave da API</Button>
-        ) : (
-          <Button variant="primary" onClick={() => void generate()} disabled={state === 'loading'}>
-            <IconSparkles size={18} /> {state === 'loading' ? 'Gerando…' : 'Gerar texto com IA'}
-          </Button>
-        )}
+        <Button variant="primary" onClick={() => void generate()} disabled={state === 'loading' || noKey}>
+          <IconSparkles size={18} /> {state === 'loading' ? 'Gerando…' : 'Gerar texto com IA'}
+        </Button>
       </div>
     </>
   )

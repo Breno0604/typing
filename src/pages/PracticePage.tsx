@@ -231,9 +231,7 @@ export function PracticeOverlays(props: {
             props.onUseText(entry)
             props.onCloseAi()
           }}
-          onOpenSettings={() => {
-            /* Sem modal de sistema no MVP; a chave é configurada pelo prompt. */
-          }}
+          onGroqChange={props.onGroqChange}
         />
       </Dialog>
     </>
