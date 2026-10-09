@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { computeMetrics, positionalCorrectChars } from '../src/logic/metrics'
-import { createSession, reduceTyping } from '../src/logic/sessionReducer'
+import { charStateAt, createSession, reduceTyping } from '../src/logic/sessionReducer'
 import type { TypingSession } from '../src/types/typing'
 
 function typeString(state: TypingSession, text: string, nowMs: number): TypingSession {
@@ -272,5 +272,85 @@ describe('positionalCorrectChars', () => {
     let s = createSession('test', 'abc')
     s = typeString(s, 'axc', 0)
     expect(positionalCorrectChars(s)).toBe(2)
+  })
+})
+
+describe('Backspace limpa o estado visual (sem cores obsoletas)', () => {
+  it('após Backspace, posições apagadas e posteriores voltam a pending', () => {
+    let s = createSession('test', 'abcde')
+    s = typeString(s, 'abcde', 0) // todas corretas, posição 5
+    s = backspace(s, 1000) // apaga 'e' (posição 4)
+    s = backspace(s, 1010) // apaga 'd' (posição 3)
+    expect(s.position).toBe(3)
+    expect(charStateAt(s, 3)).toBe('pending')
+    expect(charStateAt(s, 4)).toBe('pending')
+    expect(charStateAt(s, 0)).toBe('correct')
+    expect(charStateAt(s, 1)).toBe('correct')
+    expect(charStateAt(s, 2)).toBe('correct')
+  })
+
+  it('corrigir erro no meio não deixa destaque antigo nas letras seguintes', () => {
+    let s = createSession('test', 'abcdef')
+    s = typeString(s, 'abcxef', 0) // erro na posição 3; 4 e 5 corretas
+    expect(charStateAt(s, 3)).toBe('incorrect')
+    s = backspace(s, 100)
+    s = backspace(s, 110)
+    s = backspace(s, 120) // volta à posição 3
+    expect(charStateAt(s, 3)).toBe('pending')
+    expect(charStateAt(s, 4)).toBe('pending')
+    expect(charStateAt(s, 5)).toBe('pending')
+    s = typeString(s, 'd', 200) // corrige a posição 3
+    expect(charStateAt(s, 3)).toBe('correct')
+    expect(charStateAt(s, 4)).toBe('pending')
+    expect(charStateAt(s, 5)).toBe('pending')
+  })
+
+  it('redigitar após Backspace substitui o estado, sem sobras', () => {
+    let s = createSession('test', 'ab')
+    s = typeString(s, 'ax', 0) // erro na posição 1
+    s = backspace(s, 100)
+    s = typeString(s, 'b', 200) // corrige
+    expect(s.position).toBe(2)
+    expect(charStateAt(s, 0)).toBe('correct')
+    expect(charStateAt(s, 1)).toBe('correct')
+  })
+
+  it('comparação de espaços, acentos e pontuação após Backspace', () => {
+    let s = createSession('test', 'çá ê-x')
+    s = typeString(s, 'çá ê-x', 0)
+    expect(charStateAt(s, 0)).toBe('correct') // ç (acento)
+    expect(charStateAt(s, 1)).toBe('correct') // á (acento)
+    expect(charStateAt(s, 2)).toBe('correct') // espaço
+    expect(charStateAt(s, 3)).toBe('correct') // ê (acento)
+    expect(charStateAt(s, 4)).toBe('correct') // hífen
+    s = backspace(s, 1000) // apaga 'x'
+    s = backspace(s, 1010) // apaga '-'
+    s = backspace(s, 1020) // apaga 'ê' (acento)
+    expect(charStateAt(s, 5)).toBe('pending')
+    expect(charStateAt(s, 4)).toBe('pending') // hífen apagado
+    expect(charStateAt(s, 3)).toBe('pending') // ê apagado
+    expect(charStateAt(s, 2)).toBe('correct') // espaço preservado
+    expect(charStateAt(s, 1)).toBe('correct') // á preservado
+  })
+
+  it('erros consecutivos: apagar remove todos os destaques, sem histórico visual', () => {
+    let s = createSession('test', 'abcd')
+    s = typeString(s, 'xxxx', 0) // 4 erros consecutivos
+    expect(s.position).toBe(4)
+    s = backspace(s, 100)
+    s = backspace(s, 110)
+    s = backspace(s, 120)
+    s = backspace(s, 130)
+    expect(s.position).toBe(0)
+    for (let i = 0; i < 4; i++) expect(charStateAt(s, i)).toBe('pending')
+  })
+
+  it('caracteres corretos posicionais refletem o estado atual após Backspace', () => {
+    let s = createSession('test', 'abc')
+    s = typeString(s, 'ab', 0)
+    expect(positionalCorrectChars(s)).toBe(2)
+    s = backspace(s, 100) // apaga 'b' (estava correta)
+    expect(positionalCorrectChars(s)).toBe(1)
+    expect(charStateAt(s, 1)).toBe('pending')
   })
 })

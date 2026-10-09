@@ -135,13 +135,21 @@ function reduceBackspace(state: TypingSession, now: number) {
     return { session: state }
   }
 
+  const removedIndex = state.position - 1
+  // Estado visual sempre reflete o conteúdo ATUAL: remove a entrada da posição
+  // apagada. Sem isso, entradas obsoletas (>= nova posição) seriam renderizadas
+  // como acerto/erro em letras que já não estão digitadas.
+  const entries = new Map(state.entries)
+  entries.delete(removedIndex)
+
   // Backspace só é ação válida de retomada quando corrige o último caractere
   // digitado INCORRETAMENTE. Corrigir caractere correto não retoma a contagem.
-  const lastState = state.entries.get(state.position - 1)
+  const lastState = state.entries.get(removedIndex)
   if (lastState !== 'incorrect') {
     return {
       session: {
         ...state,
+        entries,
         corrections: state.corrections + 1,
         position: state.position - 1,
       },
@@ -153,6 +161,7 @@ function reduceBackspace(state: TypingSession, now: number) {
     return {
       session: {
         ...state,
+        entries,
         corrections: state.corrections + 1,
         position: state.position - 1,
       },
@@ -163,6 +172,7 @@ function reduceBackspace(state: TypingSession, now: number) {
   const anchor = state.lastActiveAt ?? state.startedAt
   const session: TypingSession = {
     ...state,
+    entries,
     corrections: state.corrections + 1,
     lastActiveAt: now,
     activeMs: state.activeMs + effectiveDelta(anchor, now),

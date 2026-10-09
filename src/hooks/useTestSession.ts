@@ -8,6 +8,7 @@ import { saveResult } from '../storage/resultsRepo'
 import { formatElapsed } from './useTimer'
 import { isPaused } from '../logic/timing'
 import { generateId } from '../utils/id'
+import { playErrorSound } from '../services/audio'
 
 export interface KeystrokeResult {
   correct: boolean
@@ -100,6 +101,8 @@ export function useTestSession({ mode, text, duration }: UseTestSessionParams) {
       const { session: next, keystroke } = reduceTyping(prev, { type: 'character', codePoint }, now)
       if (!keystroke) return { correct: false, consumed: false }
       setSession(next)
+      // Sinal sonoro apenas em erro, uma vez por tecla processada.
+      if (!keystroke.correct) playErrorSound()
       // Fim por conclusão do texto (teste, treino e sem limite).
       if (next.position >= next.target.length) {
         finish('text-completed')
