@@ -33,6 +33,32 @@ export type AccentColorId = 'blue' | 'green' | 'slate' | 'orange' | 'pink'
 /** Cor de fundo do card de digitação no tema claro. */
 export type LightCardBgId = 'white' | 'default' | 'soft' | 'cream' | 'mint'
 
+/** Identificador de um dedo da mão. */
+export type FingerId = 'pinky' | 'ring' | 'middle' | 'index' | 'thumb'
+
+/** Objetivo único de treino. */
+export type ObjectiveId = 'speed' | 'accuracy' | 'balance'
+
+/** Lado único de treino. */
+export type SideId = 'left' | 'right'
+
+/** Interruptores de treino combináveis. */
+export type FocusToggleId =
+  | 'worst-letters'
+  | 'worst-combos'
+  | 'nearby-keys'
+  | 'rare-keys'
+  | 'hand-alternation'
+  | 'specific-fingers'
+
+/** Conjunto de escolhas do "Foco do treino". */
+export interface TrainingFocus {
+  objective: ObjectiveId | null
+  side: SideId | null
+  toggles: FocusToggleId[]
+  fingers: FingerId[]
+}
+
 /** Texto usado numa sessão (predefinido, gerado por IA ou do usuário). */
 export interface TextEntry {
   id: string

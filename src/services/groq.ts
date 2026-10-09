@@ -36,69 +36,120 @@ const LEVEL_HINTS: Record<LevelId, string> = {
   expert: 'frases complexas e longas, vocabulário sofisticado ou técnico, números, aspas, parênteses, hífen e travessão',
 }
 
-const MIN_LENGTH = 220
 const MAX_LENGTH = 900
+/** Proporção mínima esperada do tamanho pedido (evita aceitar resposta truncada). */
+const MIN_LENGTH_RATIO = 0.6
 
-/** Tamanho alvo do texto gerado. */
-export type TextSizeId = 'short' | 'medium' | 'long'
+/** Níveis de vocabulário usados no formato "Somente palavras". */
+const WORD_LEVEL_HINTS: Record<LevelId, string> = {
+  beginner: 'palavras curtas e simples do dia a dia',
+  basic: 'palavras simples e comuns, algumas com acento',
+  intermediate: 'palavras de uso médio, com acentuação',
+  advanced: 'palavras menos frequentes e mais longas',
+  expert: 'palavras longas, raras ou técnicas',
+}
 
-/** Estilo/tom do texto gerado. */
-export type TextStyleId = 'everyday' | 'journalistic' | 'literary' | 'technical' | 'formal'
+/** Tamanho alvo do conteúdo gerado, em caracteres. */
+export type TextSizeId = 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800
+
+/** Opções de tamanho (em caracteres) exibidas no modal, em ordem crescente. */
+export const TEXT_SIZE_OPTIONS: TextSizeId[] = [100, 200, 300, 400, 500, 600, 700, 800]
+
+/** Formato do conteúdo gerado. */
+export type ContentFormatId = 'text' | 'words'
+
+export interface ContentFormatOption {
+  id: ContentFormatId
+  label: string
+  description: string
+}
+
+export const CONTENT_FORMAT_OPTIONS: ContentFormatOption[] = [
+  { id: 'text', label: 'Texto', description: 'Frases e parágrafos completos.' },
+  { id: 'words', label: 'Somente palavras', description: 'Palavras isoladas, sem frases.' },
+]
 
 /** Opções extras de conteúdo do texto gerado. */
 export interface TextFilters {
   size: TextSizeId
-  style: TextStyleId
   /** Texto intencionalmente rico em acentos e cedilha (treino ABNT). */
   accentHeavy: boolean
   /** Inclui números, datas, valores e símbolos (treino da linha numérica). */
   withNumbers: boolean
+  /** Formato do conteúdo: texto corrido ou somente palavras isoladas. */
+  format: ContentFormatId
 }
 
 export const DEFAULT_TEXT_FILTERS: TextFilters = {
-  size: 'medium',
-  style: 'everyday',
+  size: 300,
   accentHeavy: false,
   withNumbers: false,
+  format: 'text',
 }
 
-const SIZE_HINTS: Record<TextSizeId, string> = {
-  short: 'cerca de 250 caracteres (2 a 3 frases)',
-  medium: 'cerca de 450 caracteres (4 a 6 frases)',
-  long: 'cerca de 800 caracteres (7 a 9 frases)',
+/**
+ * Linhas de instrução já resolvidas pelo foco de treino (produzidas por
+ * planFocus). O buildPrompt não conhece os ids do foco: recebe as linhas prontas.
+ */
+export interface FocusPrompt {
+  preLines: string[]
+  postLines: string[]
 }
 
-const STYLE_HINTS: Record<TextStyleId, string> = {
-  everyday: 'cotidiano, com linguagem simples e situações do dia a dia',
-  journalistic: 'jornalístico, com tom de notícia e vocabulário informativo',
-  literary: 'literário, com linguagem mais descritiva e imagética',
-  technical: 'técnico/tecnologia, com vocabulário da área (sem jargão em inglês)',
-  formal: 'formal, com construção cuidada e registro culto da língua',
+/** Comprimento mínimo aceitável para o tamanho pedido. */
+function minLengthFor(size: TextSizeId): number {
+  return Math.max(50, Math.round(size * MIN_LENGTH_RATIO))
 }
 
-export function buildPrompt(level: Level, topicHint?: string, filters: TextFilters = DEFAULT_TEXT_FILTERS): string {
+export function buildPrompt(
+  level: Level,
+  topicHint?: string,
+  filters: TextFilters = DEFAULT_TEXT_FILTERS,
+  focus?: FocusPrompt,
+  historyText?: string,
+): string {
   const topic = topicHint?.trim()
+  const words = filters.format === 'words'
   const lines = [
-    'Você gera textos em português do Brasil usados em testes de digitação.',
+    'Você gera conteúdo em português do Brasil usado em testes de digitação.',
     'Regras obrigatórias:',
-    '- Responda APENAS com o texto corrido, sem título, sem saudação, sem explicação.',
-    '- Responda exclusivamente em português do Brasil, mesmo que o tema contenha palavras em outras línguas.',
-    '- Não use Markdown, listas, numeração, emojis, código, URLs ou nomes próprios estrangeiros.',
-    `- Escreva em parágrafo único com ${SIZE_HINTS[filters.size]}, com ${LEVEL_HINTS[level.id]}.`,
-    '- Use acentuação correta do português (á, à, â, ã, é, ê, í, ó, ô, õ, ú, ç).',
   ]
+
+  if (words) {
+    lines.push('- Responda APENAS com palavras isoladas, separadas por um único espaço.')
+    lines.push('- Não forme frases nem parágrafos e não use pontuação de nenhum tipo.')
+    lines.push('- Não use Markdown, listas, numeração, emojis, código, URLs ou nomes próprios estrangeiros.')
+    lines.push(`- Escreva cerca de ${filters.size} caracteres no total, com ${WORD_LEVEL_HINTS[level.id]}.`)
+  } else {
+    lines.push('- Responda APENAS com o texto corrido, sem título, sem saudação, sem explicação.')
+    lines.push('- Responda exclusivamente em português do Brasil, mesmo que o tema contenha palavras em outras línguas.')
+    lines.push('- Não use Markdown, listas, numeração, emojis, código, URLs ou nomes próprios estrangeiros.')
+    lines.push(`- Escreva em parágrafo único com cerca de ${filters.size} caracteres, com ${LEVEL_HINTS[level.id]}.`)
+  }
+  lines.push('- Use acentuação correta do português (á, à, â, ã, é, ê, í, ó, ô, õ, ú, ç).')
+
   if (filters.accentHeavy) {
     lines.push('- Priorize palavras com acentos e cedilha (á, ã, ç, ê, é, ó, ô, õ): pelo menos um terço das palavras deve conter acento ou cedilha.')
   }
   if (filters.withNumbers) {
-    lines.push('- Inclua números naturais no texto: datas, horários, quantidades, valores em reais e medidas; use também alguns parênteses e percentuais.')
+    lines.push('- Inclua números naturais no conteúdo: datas, horários, quantidades, valores em reais e medidas; use também alguns parênteses e percentuais.')
   }
-  lines.push(
-    filters.style === 'everyday'
-      ? `- O texto deve ter estilo ${STYLE_HINTS[filters.style]}.`
-      : `- O texto deve ter estilo ${STYLE_HINTS[filters.style]}, mantendo frases corridas (sem listas).`,
-  )
-  lines.push(topic ? `- Tema sugerido: ${topic}.` : '- Escolha você mesmo um tema cotidiano, cultural ou científico variado.')
+  if (focus) {
+    for (const line of focus.preLines) lines.push(`- ${line}`)
+  }
+  if (historyText?.trim()) {
+    lines.push(`- Dados de desempenho do usuário nesta aplicação: ${historyText.trim()}`)
+    lines.push('- Use esses dados com prioridade: o conteúdo deve treinar exatamente os pontos fracos listados, mantendo o português natural.')
+  }
+  if (focus) {
+    for (const line of focus.postLines) lines.push(`- ${line}`)
+  }
+
+  if (words) {
+    lines.push('- Importante: independentemente das instruções de foco acima, responda apenas com palavras isoladas, sem formar frases.')
+  }
+
+  lines.push(topic ? (words ? `- Tema das palavras: ${topic}.` : `- Tema sugerido: ${topic}.`) : '- Escolha você mesmo um tema cotidiano, cultural ou científico variado.')
   return lines.join('\n')
 }
 
@@ -117,11 +168,23 @@ export function sanitizeGeneratedText(raw: string): string {
   return text
 }
 
-function mapHttpError(status: number): GroqError {
+export function mapHttpError(status: number, model?: string, apiMessage?: string): GroqError {
+  // Normaliza o final da mensagem da API para não gerar pontuação dupla ("..").
+  const detail = apiMessage ? ` Detalhe: ${apiMessage.replace(/[.\s]+$/, '')}.` : ''
   switch (status) {
     case 401:
     case 403:
       return new GroqError('unauthorized', 'Chave da API inválida ou sem permissão. Verifique a configuração.')
+    case 404: {
+      // Sugere um modelo diferente do que está selecionado.
+      const suggestion = model?.includes('gpt-oss-120b') ? 'openai/gpt-oss-20b' : 'openai/gpt-oss-120b'
+      return new GroqError(
+        'unknown',
+        `O modelo "${model ?? 'escolhido'}" não foi encontrado ou foi descontinuado no Groq. ` +
+          `Escolha outro modelo no modal (ex.: ${suggestion}) e tente novamente.` +
+          detail,
+      )
+    }
     case 429:
       return new GroqError('rate-limit', 'Limite de uso da API atingido. Tente novamente em instantes.')
     case 500:
@@ -129,8 +192,25 @@ function mapHttpError(status: number): GroqError {
     case 503:
       return new GroqError('server', 'O serviço de IA está indisponível no momento. Tente novamente mais tarde.')
     default:
-      return new GroqError('unknown', `A API respondeu com erro (código ${status}).`)
+      return new GroqError('unknown', `A API respondeu com erro (código ${status}).${detail}`)
   }
+}
+
+/**
+ * Lê a mensagem de erro do corpo da resposta do Groq
+ * ({ error: { message } }), tolerante a corpos inesperados.
+ */
+export async function readApiErrorMessage(response: Response): Promise<string | undefined> {
+  try {
+    const data: unknown = await response.json()
+    const message = (data as { error?: { message?: unknown } })?.error?.message
+    if (typeof message === 'string' && message.trim()) {
+      return message.trim().slice(0, 200)
+    }
+  } catch {
+    // Corpo não-JSON: sem detalhe extra.
+  }
+  return undefined
 }
 
 export interface GenerateTextParams {
@@ -138,12 +218,16 @@ export interface GenerateTextParams {
   level: LevelId
   topicHint?: string
   filters?: TextFilters
+  /** Linhas de foco já resolvidas pelo painel (ver planFocus). */
+  focus?: FocusPrompt
+  /** Resumo do desempenho do usuário (erros por letra), quando o foco pede histórico. */
+  performanceData?: string
   signal?: AbortSignal
 }
 
 /** Gera um texto para digitação. Lança GroqError com mensagem amigável. */
 export async function generateTypingText(params: GenerateTextParams): Promise<string> {
-  const { config, level, topicHint, filters = DEFAULT_TEXT_FILTERS, signal } = params
+  const { config, level, topicHint, filters = DEFAULT_TEXT_FILTERS, focus, performanceData, signal } = params
   if (!config.apiKey.trim()) {
     throw new GroqError('no-key', 'Configure sua chave da API do Groq para usar geração por IA.')
   }
@@ -153,7 +237,7 @@ export async function generateTypingText(params: GenerateTextParams): Promise<st
     response = await fetchWithTimeout({
       model: config.model,
       apiKey: config.apiKey.trim(),
-      prompt: buildPrompt(getLevel(level), topicHint, filters),
+      prompt: buildPrompt(getLevel(level), topicHint, filters, focus, performanceData),
       signal,
     })
   } catch (err) {
@@ -161,7 +245,10 @@ export async function generateTypingText(params: GenerateTextParams): Promise<st
     throw new GroqError('offline', 'Sem conexão com a internet. A geração por IA está indisponível.')
   }
 
-  if (!response.ok) throw mapHttpError(response.status)
+  if (!response.ok) {
+    const apiMessage = await readApiErrorMessage(response)
+    throw mapHttpError(response.status, config.model, apiMessage)
+  }
 
   let data: unknown
   try {
@@ -180,17 +267,18 @@ export async function generateTypingText(params: GenerateTextParams): Promise<st
     if (hasReasoning || finishReason === 'length') {
       throw new GroqError(
         'invalid-response',
-        `O modelo "${config.model}" não produziu texto utilizável (modelo de raciocínio?). Escolha outro modelo nas configurações (ex.: llama-3.3-70b-versatile) e tente novamente.`,
+        `O modelo "${config.model}" não produziu texto utilizável (modelo de raciocínio?). Escolha outro modelo no modal (ex.: openai/gpt-oss-120b) e tente novamente.`,
       )
     }
     throw new GroqError('invalid-response', 'A IA não retornou um texto utilizável. Tente novamente.')
   }
 
   const sanitized = sanitizeGeneratedText(content)
-  if (sanitized.length < MIN_LENGTH) {
+  const minLength = minLengthFor(filters.size)
+  if (sanitized.length < minLength) {
     throw new GroqError(
       'invalid-response',
-      `O texto gerado veio curto demais para o teste (${sanitized.length} caracteres). Tente novamente ou escolha outro modelo.`,
+      `O conteúdo gerado veio curto demais (${sanitized.length} caracteres) para o tamanho escolhido. Tente novamente ou escolha outro modelo.`,
     )
   }
   return sanitized.slice(0, MAX_LENGTH)

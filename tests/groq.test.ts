@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { buildPrompt, extractContent, sanitizeGeneratedText, DEFAULT_TEXT_FILTERS } from '../src/services/groq'
+import { buildPrompt, extractContent, sanitizeGeneratedText, DEFAULT_TEXT_FILTERS, TEXT_SIZE_OPTIONS, mapHttpError, readApiErrorMessage } from '../src/services/groq'
+import { migrateGroqModel, DEFAULT_GROQ_CONFIG } from '../src/storage/settings'
 import { durationLabel, durationSeconds, MAX_CUSTOM_SECONDS, MIN_CUSTOM_SECONDS } from '../src/logic/durations'
 import { getLevel } from '../src/logic/levels'
 import { generateId } from '../src/utils/id'
+import {
+  buildPerformanceSummary,
+  collectProblemChars,
+  lettersForFingers,
+  planFocus,
+} from '../src/logic/focus'
 
 describe('sanitizeGeneratedText', () => {
   it('remove cercas de código e blocos markdown', () => {
@@ -44,38 +51,207 @@ describe('buildPrompt', () => {
     expect(prompt).toContain('português do Brasil')
   })
 
-  it('padrão usa tamanho médio e estilo cotidiano sem menção a números', () => {
+  it('padrão usa o tamanho padrão sem menção a números nem acentos extras', () => {
     const prompt = buildPrompt(getLevel('basic'))
-    expect(prompt).toContain('450 caracteres')
-    expect(prompt).toContain('cotidiano')
+    expect(prompt).toContain(`${DEFAULT_TEXT_FILTERS.size} caracteres`)
     expect(prompt).not.toContain('Inclua números')
     expect(prompt).not.toContain('cedilha (á, ã, ç, ê, é, ó, ô, õ)')
   })
 
-  it('tamanho curto e longo mudam a meta de caracteres', () => {
-    expect(buildPrompt(getLevel('basic'), undefined, { ...DEFAULT_TEXT_FILTERS, size: 'short' })).toContain('250 caracteres')
-    expect(buildPrompt(getLevel('basic'), undefined, { ...DEFAULT_TEXT_FILTERS, size: 'long' })).toContain('800 caracteres')
+  it('cada opção de tamanho aparece no prompt', () => {
+    for (const size of TEXT_SIZE_OPTIONS) {
+      const prompt = buildPrompt(getLevel('basic'), undefined, { ...DEFAULT_TEXT_FILTERS, size })
+      expect(prompt).toContain(`${size} caracteres`)
+    }
+  })
+
+  it('tamanho pequeno e grande mudam a meta de caracteres', () => {
+    expect(buildPrompt(getLevel('basic'), undefined, { ...DEFAULT_TEXT_FILTERS, size: 100 })).toContain('100 caracteres')
+    expect(buildPrompt(getLevel('basic'), undefined, { ...DEFAULT_TEXT_FILTERS, size: 800 })).toContain('800 caracteres')
   })
 
   it('filtros extras entram no prompt', () => {
     const prompt = buildPrompt(getLevel('intermediate'), undefined, {
-      size: 'medium',
-      style: 'journalistic',
+      size: 300,
       accentHeavy: true,
       withNumbers: true,
+      format: 'text',
     })
-    expect(prompt).toContain('jornalístico')
     expect(prompt).toContain('cedilha (á, ã, ç, ê, é, ó, ô, õ)')
     expect(prompt).toContain('Inclua números')
   })
 
-  it('estilo literário pede frases corridas', () => {
-    const prompt = buildPrompt(getLevel('intermediate'), undefined, {
-      ...DEFAULT_TEXT_FILTERS,
-      style: 'literary',
+  it('formato "Somente palavras" pede palavras isoladas sem frases', () => {
+    const prompt = buildPrompt(getLevel('basic'), undefined, { ...DEFAULT_TEXT_FILTERS, size: 200, format: 'words' })
+    expect(prompt).toContain('palavras isoladas')
+    expect(prompt).toContain('200 caracteres')
+    expect(prompt).not.toContain('parágrafo único')
+    expect(prompt).not.toContain('texto corrido')
+  })
+
+  it('formato "Texto" pede texto corrido sem a regra de palavras isoladas', () => {
+    const prompt = buildPrompt(getLevel('basic'), undefined, { ...DEFAULT_TEXT_FILTERS, format: 'text' })
+    expect(prompt).toContain('texto corrido')
+    expect(prompt).toContain('parágrafo único')
+    expect(prompt).not.toContain('palavras isoladas')
+  })
+
+  it('formato "Somente palavras" reforça a regra mesmo com foco', () => {
+    const plan = planFocus({ objective: 'speed', side: null, toggles: [], fingers: [] })
+    const prompt = buildPrompt(
+      getLevel('basic'),
+      undefined,
+      { ...DEFAULT_TEXT_FILTERS, size: 200, format: 'words' },
+      { preLines: plan.preLines, postLines: plan.postLines },
+    )
+    expect(prompt).toContain('palavras isoladas')
+    expect(prompt).toContain('VELOCIDADE')
+  })
+
+  it('objetivo do foco entra como linha no prompt', () => {
+    const plan = planFocus({ objective: 'speed', side: null, toggles: [], fingers: [] })
+    const prompt = buildPrompt(getLevel('basic'), undefined, DEFAULT_TEXT_FILTERS, {
+      preLines: plan.preLines,
+      postLines: plan.postLines,
     })
-    expect(prompt).toContain('literário')
-    expect(prompt).toContain('sem listas')
+    expect(prompt).toContain('VELOCIDADE')
+  })
+
+  it('interruptor de foco entra como linha no prompt', () => {
+    const plan = planFocus({ objective: null, side: null, toggles: ['nearby-keys'], fingers: [] })
+    const prompt = buildPrompt(getLevel('basic'), undefined, DEFAULT_TEXT_FILTERS, {
+      preLines: plan.preLines,
+      postLines: plan.postLines,
+    })
+    expect(prompt).toContain('TECLAS PRÓXIMAS')
+  })
+
+  it('sem foco não adiciona objetivo nem dados', () => {
+    const prompt = buildPrompt(getLevel('basic'))
+    expect(prompt).not.toContain('Objetivo:')
+    expect(prompt).not.toContain('Dados de desempenho')
+  })
+
+  it('histórico entra com prioridade quando fornecido', () => {
+    const plan = planFocus({ objective: null, side: null, toggles: ['worst-letters'], fingers: [] })
+    const prompt = buildPrompt(
+      getLevel('basic'),
+      undefined,
+      DEFAULT_TEXT_FILTERS,
+      { preLines: plan.preLines, postLines: plan.postLines },
+      'Histórico: "ç" (5 erros em 20)',
+    )
+    expect(prompt).toContain('Histórico: "ç" (5 erros em 20)')
+    expect(prompt).toContain('prioridade')
+  })
+
+  it('foco baseado em histórico sem dados usa a estratégia padrão do objetivo', () => {
+    const plan = planFocus({ objective: null, side: null, toggles: ['worst-letters'], fingers: [] })
+    const prompt = buildPrompt(getLevel('basic'), undefined, DEFAULT_TEXT_FILTERS, {
+      preLines: plan.preLines,
+      postLines: plan.postLines,
+    })
+    expect(prompt).toContain('LETRAS COM MAIS ERROS')
+    expect(prompt).toContain('classicamente difíceis')
+  })
+})
+
+describe('focus helpers', () => {
+  it('agrega charStats do histórico por caractere e ordena por erros', () => {
+    const results = [
+      { metrics: { charStats: [
+        { char: 'a', attempts: 50, errors: 2 },
+        { char: 'ç', attempts: 10, errors: 5 },
+      ] } },
+      { metrics: { charStats: [
+        { char: 'ç', attempts: 8, errors: 3 },
+        { char: 'm', attempts: 40, errors: 4 },
+      ] } },
+    ]
+    const problems = collectProblemChars(results)
+    expect(problems[0].char).toBe('ç')
+    expect(problems[0].errors).toBe(8)
+    expect(problems[0].attempts).toBe(18)
+    expect(problems.find((p) => p.char === 'a')).toBeTruthy()
+    // Caracteres sem erro não entram.
+    expect(problems.find((p) => p.char === 'x')).toBeUndefined()
+  })
+
+  it('espaço é rotulado como "espaço" no resumo de desempenho', () => {
+    const summary = buildPerformanceSummary([
+      { metrics: { charStats: [{ char: ' ', attempts: 100, errors: 6 }] } },
+    ])
+    expect(summary).toContain('espaço')
+    expect(summary).not.toContain('" "')
+  })
+
+  it('resumo vazio quando não há erros no histórico', () => {
+    expect(buildPerformanceSummary([{ metrics: { charStats: [{ char: 'a', attempts: 10, errors: 0 }] } }])).toBe('')
+    expect(buildPerformanceSummary([])).toBe('')
+  })
+
+  it('lettersForFingers junta as letras dos dedos escolhidos', () => {
+    const letters = lettersForFingers(['pinky', 'thumb'])
+    expect(letters).toContain('q')
+    expect(letters).toContain('ç')
+    expect(letters).toContain(' ')
+    expect(letters).not.toContain('w')
+  })
+})
+
+describe('erros da API e migração de modelo', () => {
+  it('404 explica que o modelo foi descontinuado e sugere outro', () => {
+    const err = mapHttpError(404, 'llama-3.3-70b-versatile')
+    expect(err.message).toContain('llama-3.3-70b-versatile')
+    expect(err.message).toContain('descontinuado')
+    expect(err.message).toContain('openai/gpt-oss-120b')
+  })
+
+  it('404 anexa a mensagem detalhada da API quando presente', () => {
+    const err = mapHttpError(404, 'modelo-x', 'Model not found')
+    expect(err.message).toContain('Model not found')
+  })
+
+  it('404 com o modelo recomendado selecionado sugere o alternativo', () => {
+    const err = mapHttpError(404, 'openai/gpt-oss-120b')
+    expect(err.message).toContain('openai/gpt-oss-20b')
+    expect(err.message).not.toContain('(ex.: openai/gpt-oss-120b)')
+  })
+
+  it('404 com detalhe terminado em ponto não gera pontuação dupla', () => {
+    const err = mapHttpError(404, 'modelo-x', 'Model deprecated.')
+    expect(err.message).toContain('Detalhe: Model deprecated.')
+    expect(err.message).not.toContain('..')
+  })
+
+  it('demais códigos continuam com as mensagens amigáveis já existentes', () => {
+    expect(mapHttpError(401).message).toContain('Chave da API')
+    expect(mapHttpError(429).message).toContain('Limite de uso')
+    expect(mapHttpError(500).message).toContain('indisponível')
+    expect(mapHttpError(418).message).toContain('código 418')
+  })
+
+  it('readApiErrorMessage extrai error.message e tolera corpo inválido', async () => {
+    const ok = new Response(JSON.stringify({ error: { message: 'Model not found' } }), { status: 404 })
+    expect(await readApiErrorMessage(ok)).toBe('Model not found')
+    const bad = new Response('não é json', { status: 500 })
+    expect(await readApiErrorMessage(bad)).toBeUndefined()
+    const noMsg = new Response('{}', { status: 500 })
+    expect(await readApiErrorMessage(noMsg)).toBeUndefined()
+  })
+
+  it('migra modelos descontinuados do Groq para o padrão atual', () => {
+    expect(migrateGroqModel('llama-3.3-70b-versatile')).toBe('openai/gpt-oss-120b')
+    expect(migrateGroqModel('llama-3.1-8b-instant')).toBe('openai/gpt-oss-20b')
+    // Modelo custom desconhecido é mantido.
+    expect(migrateGroqModel('outro/modelo')).toBe('outro/modelo')
+    // Vazio/indefinido cai no padrão.
+    expect(migrateGroqModel(undefined)).toBe(DEFAULT_GROQ_CONFIG.model)
+    expect(migrateGroqModel('  ')).toBe(DEFAULT_GROQ_CONFIG.model)
+  })
+
+  it('padrão atual não é um modelo descontinuado', () => {
+    expect(DEFAULT_GROQ_CONFIG.model).toBe('openai/gpt-oss-120b')
   })
 })
 

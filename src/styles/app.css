@@ -30,6 +30,13 @@
   /* Alvos de toque e transições */
   --touch: 44px;
   --transition: 0.15s ease;
+
+  /* Cores fixas dos caracteres digitados (o card de digitação é sempre branco,
+     então os tons não dependem do tema). Bom contraste para leitura imediata. */
+  --correct-bg: #cdeed6; /* verde-claro */
+  --correct-ink: #0a6b2e; /* verde-escuro */
+  --incorrect-bg: #f7d4d4; /* vermelho-claro */
+  --incorrect-ink: #9b1c1c; /* vermelho-escuro */
 }
 
 /* ============ Tokens de tema ============ */
@@ -351,7 +358,7 @@ textarea {
   font-family: 'Cascadia Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace;
   font-size: var(--typing-font-size, 26px);
   line-height: 1.9;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text-faint);
@@ -359,8 +366,8 @@ textarea {
 }
 
 .char {
-  border-radius: 3px;
-  padding: 1px 0.5px;
+  border-radius: 0;
+  padding: 2px 0;
   position: relative;
   /* Destaque em negrito em todos os estados (pendente/correto/incorreto/atual).
      Fontes monoespaçadas mantêm a mesma largura no negrito, sem deslocar o texto. */
@@ -369,15 +376,22 @@ textarea {
      a transição de cor cria o movimento suave do sublinhado entre caracteres.
      Espessura maior acompanha o negrito. */
   border-bottom: 3px solid transparent;
-  transition: color 0.12s ease, border-bottom-color 0.12s ease;
+  transition: color 0.12s ease, border-bottom-color 0.12s ease, background-color 0.12s ease;
 }
 
+/* Letras já digitadas formam uma faixa de fundo contínua: sem padding
+   horizontal, sem raio e com background-clip: padding-box (a faixa não invade
+   a borda inferior transparente, mantendo-a simétrica). */
 .char[data-state='correct'] {
-  color: var(--correct);
+  background: var(--correct-bg);
+  background-clip: padding-box;
+  color: var(--correct-ink);
 }
 
 .char[data-state='incorrect'] {
-  color: var(--error);
+  background: var(--incorrect-bg);
+  background-clip: padding-box;
+  color: var(--incorrect-ink);
 }
 
 /* Caractere atual (a letra a ser digitada): preto, negrito e sublinhado. */
@@ -847,6 +861,92 @@ textarea {
 
 .ai-toggles {
   margin-top: var(--space-3);
+}
+
+/* Descrição simples do foco de treino escolhido. */
+.ai-focus-help {
+  margin: var(--space-1) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--accent);
+  background: var(--btn-bg);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.ai-focus-help[data-kind='error'] {
+  border-left-color: #b00020;
+  color: #9b1c1c;
+}
+
+/* Bloco de ajustes finos (interruptores combináveis do foco). */
+.ai-focus-section {
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius-md, 8px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ai-focus-section-title {
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.segmented {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.toggle-row-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.toggle-row-label {
+  font-size: var(--fs-md);
+  color: var(--text);
+}
+
+.toggle-row-desc {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.ai-focus-warnings {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  border-left: 3px solid var(--accent);
+  background: var(--btn-bg);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+/* Grupo de dedos do foco "Dedos específicos" (mesmo padrão das sugestões). */
+.ai-fingers {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+}
+
+.ai-fingers-label {
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
 }
 
 .ai-topics {

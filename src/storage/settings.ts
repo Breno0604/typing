@@ -19,7 +19,25 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export const DEFAULT_GROQ_CONFIG: GroqConfig = {
   apiKey: '',
-  model: 'llama-3.3-70b-versatile',
+  model: 'openai/gpt-oss-120b',
+}
+
+/**
+ * Modelos retirados do tier gratuito/developer do Groq (16/08/2026):
+ * agora são Enterprise e retornam 404. Migrados silenciosamente ao carregar.
+ */
+export const DEPRECATED_GROQ_MODELS: Record<string, string> = {
+  'llama-3.3-70b-versatile': 'openai/gpt-oss-120b',
+  'llama-3.1-8b-instant': 'openai/gpt-oss-20b',
+}
+
+/**
+ * Corrige modelos descontinuados salvos em configurações antigas
+ * (sem chave conhecida e sem modelo definido → padrão atual).
+ */
+export function migrateGroqModel(model: string | undefined): string {
+  if (!model || !model.trim()) return DEFAULT_GROQ_CONFIG.model
+  return DEPRECATED_GROQ_MODELS[model] ?? model
 }
 
 const SETTINGS_KEY = 'app-settings'
@@ -52,7 +70,8 @@ export async function saveSettings(settings: Settings): Promise<void> {
 
 export async function loadGroqConfig(): Promise<GroqConfig> {
   const stored = await dbGet<Partial<GroqConfig>>(STORE_SETTINGS, GROQ_KEY)
-  return { ...DEFAULT_GROQ_CONFIG, ...stored }
+  const merged = { ...DEFAULT_GROQ_CONFIG, ...stored }
+  return { ...merged, model: migrateGroqModel(merged.model) }
 }
 
 export async function saveGroqConfig(config: GroqConfig): Promise<void> {
