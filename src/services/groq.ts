@@ -78,6 +78,11 @@ export interface TextFilters {
   withNumbers: boolean
   /** Formato do conteúdo: texto corrido ou somente palavras isoladas. */
   format: ContentFormatId
+  /**
+   * No formato "Somente palavras", restringe 100% das palavras ao lado
+   * escolhido (esquerdo/direito). Sem efeito nos demais formatos.
+   */
+  wordsSideOnly: boolean
 }
 
 export const DEFAULT_TEXT_FILTERS: TextFilters = {
@@ -85,6 +90,7 @@ export const DEFAULT_TEXT_FILTERS: TextFilters = {
   accentHeavy: false,
   withNumbers: false,
   format: 'text',
+  wordsSideOnly: false,
 }
 
 /**

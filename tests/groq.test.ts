@@ -9,6 +9,7 @@ import {
   collectProblemChars,
   lettersForFingers,
   planFocus,
+  wordsSideExclusiveHint,
 } from '../src/logic/focus'
 
 describe('sanitizeGeneratedText', () => {
@@ -76,6 +77,7 @@ describe('buildPrompt', () => {
       accentHeavy: true,
       withNumbers: true,
       format: 'text',
+      wordsSideOnly: false,
     })
     expect(prompt).toContain('cedilha (á, ã, ç, ê, é, ó, ô, õ)')
     expect(prompt).toContain('Inclua números')
@@ -106,6 +108,17 @@ describe('buildPrompt', () => {
     )
     expect(prompt).toContain('palavras isoladas')
     expect(prompt).toContain('VELOCIDADE')
+  })
+
+  it('instrução exclusiva de lado entra no prompt de palavras', () => {
+    const prompt = buildPrompt(
+      getLevel('basic'),
+      undefined,
+      { ...DEFAULT_TEXT_FILTERS, format: 'words' },
+      { preLines: [], postLines: [wordsSideExclusiveHint('left')] },
+    )
+    expect(prompt).toContain('somente palavras')
+    expect(prompt).toContain('mão esquerda')
   })
 
   it('objetivo do foco entra como linha no prompt', () => {

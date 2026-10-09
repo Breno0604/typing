@@ -31,6 +31,7 @@ import {
   SIDE_OPTIONS,
   buildPerformanceSummary,
   planFocus,
+  wordsSideExclusiveHint,
 } from '../logic/focus'
 import type { TestResult } from '../types/domain'
 
@@ -80,6 +81,7 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
           accentHeavy: prefs.accentHeavy,
           withNumbers: prefs.withNumbers,
           format: prefs.format,
+          wordsSideOnly: prefs.wordsSideOnly,
         })
         setPrefsLoaded(true)
       })
@@ -99,6 +101,7 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
       accentHeavy: filters.accentHeavy,
       withNumbers: filters.withNumbers,
       format: filters.format,
+      wordsSideOnly: filters.wordsSideOnly,
     }).catch(() => {})
   }, [prefsLoaded, focus, filters])
 
@@ -134,12 +137,16 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
     setState('loading')
     setMessage('Gerando texto…')
     try {
+      const postLines =
+        filters.format === 'words' && filters.wordsSideOnly && focus.side
+          ? [...plan.postLines, wordsSideExclusiveHint(focus.side)]
+          : plan.postLines
       const content = await generateTypingText({
         config: props.groqConfig,
         level: props.level,
         topicHint: topic || undefined,
         filters,
-        focus: { preLines: plan.preLines, postLines: plan.postLines },
+        focus: { preLines: plan.preLines, postLines },
         performanceData: plan.usesHistory && historyAvailable ? performanceData : undefined,
       })
       const entry: TextEntry = {
@@ -323,6 +330,14 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
               ))}
             </div>
           </div>
+          {filters.format === 'words' && focus.side && (
+            <ToggleRow
+              checked={filters.wordsSideOnly}
+              onChange={(v) => patchFilters({ wordsSideOnly: v })}
+              label="Somente palavras do lado escolhido"
+              description="Ligado: usa apenas palavras do lado selecionado. Desligado: prioriza o lado, mas permite palavras variadas."
+            />
+          )}
           {FOCUS_TOGGLE_OPTIONS.map((o) => (
             <ToggleRow
               key={o.id}

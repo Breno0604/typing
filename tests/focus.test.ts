@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EMPTY_FOCUS, planFocus } from '../src/logic/focus'
+import { EMPTY_FOCUS, planFocus, wordsSideExclusiveHint } from '../src/logic/focus'
 import type { TrainingFocus } from '../src/types/domain'
 
 const focus = (patch: Partial<TrainingFocus>): TrainingFocus => ({ ...EMPTY_FOCUS, ...patch })
@@ -70,5 +70,17 @@ describe('planFocus', () => {
       }),
     )
     expect(plan.warnings.some((w) => w.includes('diluir'))).toBe(true)
+  })
+})
+
+describe('wordsSideExclusiveHint', () => {
+  it('cita a mão esquerda e proíbe a outra mão', () => {
+    const hint = wordsSideExclusiveHint('left')
+    expect(hint).toContain('mão esquerda')
+    expect(hint).toContain('outra mão')
+  })
+
+  it('cita a mão direita', () => {
+    expect(wordsSideExclusiveHint('right')).toContain('mão direita')
   })
 })

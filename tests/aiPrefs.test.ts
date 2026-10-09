@@ -36,4 +36,10 @@ describe('normalizeAiPrefs', () => {
     expect(prefs.size).toBe(DEFAULT_AI_PREFS.size)
     expect(prefs.format).toBe(DEFAULT_AI_PREFS.format)
   })
+
+  it('normaliza wordsSideOnly como booleano', () => {
+    expect(normalizeAiPrefs({ wordsSideOnly: true }).wordsSideOnly).toBe(true)
+    expect(normalizeAiPrefs({ wordsSideOnly: 'x' as never }).wordsSideOnly).toBe(false)
+    expect(normalizeAiPrefs(undefined).wordsSideOnly).toBe(false)
+  })
 })

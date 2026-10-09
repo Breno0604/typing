@@ -271,3 +271,12 @@ export function planFocus(focus: TrainingFocus): FocusPlan {
 
   return { preLines, postLines, usesHistory, warnings, blocked, blockMessage }
 }
+
+/**
+ * Instrução extra do formato "Somente palavras" quando o usuário quer 100%
+ * das palavras restritas ao lado escolhido (esquerdo/direito).
+ */
+export function wordsSideExclusiveHint(side: SideId): string {
+  const label = side === 'left' ? 'esquerda' : 'direita'
+  return `Exclusivo: use somente palavras que possam ser digitadas apenas com a mão ${label}; não use palavras que dependam da outra mão.`
+}

@@ -13,6 +13,7 @@ export interface AiGenPrefs {
   accentHeavy: boolean
   withNumbers: boolean
   format: ContentFormatId
+  wordsSideOnly: boolean
 }
 
 export const DEFAULT_AI_PREFS: AiGenPrefs = {
@@ -21,6 +22,7 @@ export const DEFAULT_AI_PREFS: AiGenPrefs = {
   accentHeavy: DEFAULT_TEXT_FILTERS.accentHeavy,
   withNumbers: DEFAULT_TEXT_FILTERS.withNumbers,
   format: DEFAULT_TEXT_FILTERS.format,
+  wordsSideOnly: DEFAULT_TEXT_FILTERS.wordsSideOnly,
 }
 
 /** Converte os antigos tamanhos nomeados para a nova escala em caracteres. */
@@ -51,6 +53,7 @@ export function normalizeAiPrefs(stored: Partial<AiGenPrefs> | undefined): AiGen
     ...stored,
     size: normalizeSize(stored?.size),
     format: normalizeFormat(stored?.format),
+    wordsSideOnly: stored?.wordsSideOnly === true,
   }
 }
 
