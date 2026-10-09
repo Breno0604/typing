@@ -174,6 +174,16 @@ export function sanitizeGeneratedText(raw: string): string {
   return text
 }
 
+/**
+ * Sugere um modelo alternativo ao informado, garantindo que a sugestão
+ * nunca seja igual ao modelo que acabou de falhar.
+ */
+export function suggestAlternativeModel(model: string | undefined): string {
+  if (model && model.includes('gpt-oss-20b')) return 'openai/gpt-oss-120b'
+  if (model && model.includes('gpt-oss-120b')) return 'openai/gpt-oss-20b'
+  return 'openai/gpt-oss-120b'
+}
+
 export function mapHttpError(status: number, model?: string, apiMessage?: string): GroqError {
   // Normaliza o final da mensagem da API para não gerar pontuação dupla ("..").
   const detail = apiMessage ? ` Detalhe: ${apiMessage.replace(/[.\s]+$/, '')}.` : ''
@@ -182,12 +192,10 @@ export function mapHttpError(status: number, model?: string, apiMessage?: string
     case 403:
       return new GroqError('unauthorized', 'Chave da API inválida ou sem permissão. Verifique a configuração.')
     case 404: {
-      // Sugere um modelo diferente do que está selecionado.
-      const suggestion = model?.includes('gpt-oss-120b') ? 'openai/gpt-oss-20b' : 'openai/gpt-oss-120b'
       return new GroqError(
         'unknown',
         `O modelo "${model ?? 'escolhido'}" não foi encontrado ou foi descontinuado no Groq. ` +
-          `Escolha outro modelo no modal (ex.: ${suggestion}) e tente novamente.` +
+          `Escolha outro modelo no modal (ex.: ${suggestAlternativeModel(model)}) e tente novamente.` +
           detail,
       )
     }
@@ -266,17 +274,17 @@ export async function generateTypingText(params: GenerateTextParams): Promise<st
   const { content, finishReason, hasReasoning } = extractContent(data)
 
   if (!content) {
-    // Modelos racionadores podem gastar todo o orçamento de tokens em raciocínio
-    // e não produzir texto. O campo `reasoning` NÃO é usado como texto: é o
-    // pensamento interno do modelo (geralmente em inglês, metalinguagem — não
-    // serve para digitação). Erro distinto orienta o usuário a ajustar o modelo.
-    if (hasReasoning || finishReason === 'length') {
-      throw new GroqError(
-        'invalid-response',
-        `O modelo "${config.model}" não produziu texto utilizável (modelo de raciocínio?). Escolha outro modelo no modal (ex.: openai/gpt-oss-120b) e tente novamente.`,
-      )
-    }
-    throw new GroqError('invalid-response', 'A IA não retornou um texto utilizável. Tente novamente.')
+    // Modelos de raciocínio (GPT-OSS) às vezes gastam todo o orçamento de
+    // tokens no raciocínio e devolvem conteúdo vazio. O pedido já limita o
+    // esforço de raciocínio; aqui orientamos a tentar de novo.
+    const suggestion = suggestAlternativeModel(config.model)
+    const reasoningEmpty = hasReasoning || finishReason === 'length'
+    throw new GroqError(
+      'invalid-response',
+      reasoningEmpty
+        ? `O modelo "${config.model}" não produziu texto desta vez. Tente gerar novamente; se persistir, escolha outro modelo (ex.: ${suggestion}).`
+        : 'A IA não retornou um texto utilizável. Tente novamente.',
+    )
   }
 
   const sanitized = sanitizeGeneratedText(content)
@@ -290,7 +298,39 @@ export async function generateTypingText(params: GenerateTextParams): Promise<st
   return sanitized.slice(0, MAX_LENGTH)
 }
 
-/** Fetch com timeout: evita que uma rede sem resposta trave a geração indefinidamente. */
+/**
+ * Modelos com raciocínio interno (por exemplo GPT-OSS) gastam tokens de
+ * raciocínio dentro do orçamento de saída e podem retornar conteúdo vazio.
+ */
+export function isReasoningModel(model: string): boolean {
+  return model.includes('gpt-oss')
+}
+
+/** Teto de tokens de saída. Folgado para caber raciocínio + texto. */
+export const MAX_COMPLETION_TOKENS = 4096
+
+export interface ChatMessage {
+  role: 'system' | 'user'
+  content: string
+}
+
+/**
+ * Monta o corpo da requisição ao endpoint compatível com OpenAI.
+ * Para modelos de raciocínio (GPT-OSS), limita `reasoning_effort` a "low":
+ * sem isso, o raciocínio consome todo o orçamento de saída e a resposta volta
+ * com `content` vazio de forma intermitente.
+ */
+export function buildRequestBody(model: string, messages: ChatMessage[]): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+    temperature: 0.9,
+    max_completion_tokens: MAX_COMPLETION_TOKENS,
+  }
+  if (isReasoningModel(model)) body.reasoning_effort = 'low'
+  return body
+}
+
 async function fetchWithTimeout(args: {
   model: string
   apiKey: string
@@ -308,16 +348,12 @@ async function fetchWithTimeout(args: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${args.apiKey}`,
       },
-      body: JSON.stringify({
-        model: args.model,
-        messages: [
+      body: JSON.stringify(
+        buildRequestBody(args.model, [
           { role: 'system', content: args.prompt },
           { role: 'user', content: 'Gere um novo texto para o teste de digitação.' },
-        ],
-        temperature: 0.9,
-        // Orçamento suficiente até para modelos com raciocínio.
-        max_completion_tokens: 2048,
-      }),
+        ]),
+      ),
       signal: controller.signal,
     })
   } finally {

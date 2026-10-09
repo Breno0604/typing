@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildPrompt, extractContent, sanitizeGeneratedText, DEFAULT_TEXT_FILTERS, TEXT_SIZE_OPTIONS, mapHttpError, readApiErrorMessage } from '../src/services/groq'
+import { buildPrompt, extractContent, sanitizeGeneratedText, DEFAULT_TEXT_FILTERS, TEXT_SIZE_OPTIONS, mapHttpError, readApiErrorMessage, buildRequestBody, MAX_COMPLETION_TOKENS } from '../src/services/groq'
 import { migrateGroqModel, DEFAULT_GROQ_CONFIG } from '../src/storage/settings'
 import { durationLabel, durationSeconds, MAX_CUSTOM_SECONDS, MIN_CUSTOM_SECONDS } from '../src/logic/durations'
 import { getLevel } from '../src/logic/levels'
@@ -265,6 +265,27 @@ describe('erros da API e migração de modelo', () => {
 
   it('padrão atual não é um modelo descontinuado', () => {
     expect(DEFAULT_GROQ_CONFIG.model).toBe('openai/gpt-oss-120b')
+  })
+})
+
+describe('erros de geração e payload da requisição', () => {
+  it('limita o esforço de raciocínio em modelos de raciocínio (GPT-OSS)', () => {
+    const body = buildRequestBody('openai/gpt-oss-120b', [
+      { role: 'system', content: 'x' },
+      { role: 'user', content: 'y' },
+    ])
+    expect(body.reasoning_effort).toBe('low')
+    expect(body.max_completion_tokens).toBe(MAX_COMPLETION_TOKENS)
+  })
+
+  it('não envia reasoning_effort para modelos sem raciocínio', () => {
+    const body = buildRequestBody('llama-3.3-70b-versatile', [])
+    expect(body.reasoning_effort).toBeUndefined()
+    expect(body.model).toBe('llama-3.3-70b-versatile')
+  })
+
+  it('orçamento de saída é folgado para caber raciocínio + texto', () => {
+    expect(MAX_COMPLETION_TOKENS).toBeGreaterThanOrEqual(4096)
   })
 })
 
