@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   FingerId,
   FocusToggleId,
@@ -20,6 +20,8 @@ import { saveUserText } from '../storage/textsRepo'
 import { getAllResults } from '../storage/resultsRepo'
 import { loadAiPrefs, saveAiPrefs } from '../storage/aiPrefs'
 import { generateId } from '../utils/id'
+import { countWords, toCodePoints } from '../logic/texts'
+import { Dialog } from './ui/Dialog'
 import { Button, Field, SelectControl, ToggleRow } from './ui/controls'
 import { IconSparkles } from './ui/Icons'
 import { LEVELS } from '../logic/levels'
@@ -36,6 +38,9 @@ import {
 import type { TestResult } from '../types/domain'
 
 interface AiGeneratePanelProps {
+  /** Controla os diálogos (configuração e pré-visualização) do painel. */
+  open: boolean
+  onClose: () => void
   groqConfig: GroqConfig
   level: LevelId
   onLevelChange: (level: LevelId) => void
@@ -45,6 +50,9 @@ interface AiGeneratePanelProps {
 }
 
 type AiState = 'idle' | 'loading' | 'error' | 'ready'
+
+/** Etapa atual dentro do fluxo de IA: configuração ou prévia do texto gerado. */
+type AiView = 'config' | 'preview'
 
 export function AiGeneratePanel(props: AiGeneratePanelProps) {
   const [state, setState] = useState<AiState>('idle')
@@ -59,6 +67,26 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
   const [results, setResults] = useState<TestResult[]>([])
   // Evita salvar as preferências antes de carregá-las do IndexedDB.
   const [prefsLoaded, setPrefsLoaded] = useState(false)
+  // Fluxo em duas etapas: configurar → pré-visualizar o texto gerado.
+  const [view, setView] = useState<AiView>('config')
+  // Texto gerado aguardando a decisão do usuário (ainda não salvo).
+  const [pending, setPending] = useState<TextEntry | null>(null)
+  // Bloqueia ações enquanto salva/inicia, evitando cliques repetidos.
+  const [busy, setBusy] = useState(false)
+  // Erro ao salvar/iniciar a partir da prévia (o conteúdo é preservado).
+  const [previewError, setPreviewError] = useState('')
+  // Guarda síncrona contra duplo clique (o estado do React não é imediato).
+  const actingRef = useRef(false)
+
+  // Ao fechar o fluxo, volta para a configuração e descarta a prévia pendente.
+  useEffect(() => {
+    if (props.open) return
+    setView('config')
+    setPending(null)
+    setPreviewError('')
+    setBusy(false)
+    actingRef.current = false
+  }, [props.open])
 
   useEffect(() => {
     let cancelled = false
@@ -136,6 +164,7 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
   const generate = async () => {
     setState('loading')
     setMessage('Gerando texto…')
+    setPreviewError('')
     try {
       const postLines =
         filters.format === 'words' && filters.wordsSideOnly && focus.side
@@ -158,10 +187,12 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
         createdAt: Date.now(),
         generatedByAi: true,
       }
-      await saveUserText(entry)
+      // Não salva aqui: o usuário decide na prévia ("Salvar e praticar").
+      setPending(entry)
+      actingRef.current = false
       setState('ready')
-      setMessage('Texto gerado e salvo em "Meus textos".')
-      props.onUseText(entry)
+      setMessage('')
+      setView('preview')
     } catch (err) {
       if (err instanceof GroqError) {
         setState('error')
@@ -173,7 +204,51 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
     }
   }
 
+  // Fecha o fluxo e limpa a prévia pendente.
+  const handleClose = () => {
+    setView('config')
+    setPending(null)
+    setPreviewError('')
+    actingRef.current = false
+    props.onClose()
+  }
+
+  // Volta à configuração mantendo o texto gerado (para ajustar parâmetros).
+  const backToConfig = () => {
+    if (actingRef.current) return
+    setPreviewError('')
+    setView('config')
+  }
+
+  // Inicia a prática sem salvar nada.
+  const practiceWithoutSaving = () => {
+    if (actingRef.current || !pending) return
+    actingRef.current = true
+    setBusy(true)
+    props.onUseText(pending)
+  }
+
+  // Salva uma única vez e inicia a prática; em erro, preserva o conteúdo.
+  const saveAndPractice = async () => {
+    if (actingRef.current || !pending) return
+    actingRef.current = true
+    setBusy(true)
+    setPreviewError('')
+    try {
+      await saveUserText(pending)
+      props.onUseText(pending)
+    } catch {
+      actingRef.current = false
+      setBusy(false)
+      setPreviewError('Não foi possível salvar o texto. O conteúdo foi mantido — tente novamente.')
+    }
+  }
+
   const noKey = !props.groqConfig.apiKey.trim()
+
+  // Estatísticas do texto aguardando decisão (contagem por code points, como no app).
+  const previewChars = pending ? toCodePoints(pending.content).length : 0
+  const previewWords = pending ? countWords(pending.content) : 0
 
   // Aviso de chave ausente com o formulário de configuração inline.
   const keyNotice = noKey && (
@@ -214,6 +289,12 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
 
   return (
     <>
+      <Dialog
+        open={props.open && view === 'config'}
+        onClose={handleClose}
+        title="Gerar texto com IA (Groq)"
+        className="dialog-ai"
+      >
       {/* Corpo rolável do modal (o rodapé com o botão fica fora, sempre visível). */}
       <div className="ai-body">
         {keyNotice}
@@ -412,6 +493,11 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
 
       {/* Rodapé fixo: o botão de gerar fica sempre visível, mesmo com o corpo em rolagem. */}
       <div className="ai-footer">
+        {pending && (
+          <Button onClick={() => setView('preview')} disabled={state === 'loading'}>
+            Ver prévia
+          </Button>
+        )}
         <Button
           variant="primary"
           onClick={() => void generate()}
@@ -420,6 +506,41 @@ export function AiGeneratePanel(props: AiGeneratePanelProps) {
           <IconSparkles size={18} /> {state === 'loading' ? 'Gerando…' : 'Gerar texto com IA'}
         </Button>
       </div>
+      </Dialog>
+
+      {/* Prévia: o texto gerado aparece aqui antes de iniciar a prática. */}
+      <Dialog
+        open={props.open && view === 'preview' && pending !== null}
+        onClose={backToConfig}
+        title="Prévia do texto gerado"
+        className="dialog-ai"
+      >
+        <div className="ai-body">
+          <p className="ai-preview-meta">
+            {previewChars} {previewChars === 1 ? 'caractere' : 'caracteres'} · {previewWords}{' '}
+            {previewWords === 1 ? 'palavra' : 'palavras'}
+          </p>
+          <div className="ai-preview-text">{pending?.content}</div>
+          {previewError && (
+            <div className="status-message" data-kind="error" role="status">
+              {previewError}
+            </div>
+          )}
+        </div>
+        <div className="ai-footer ai-footer-preview">
+          <Button onClick={backToConfig} disabled={busy}>
+            Voltar e ajustar
+          </Button>
+          <div className="ai-footer-actions">
+            <Button onClick={practiceWithoutSaving} disabled={busy}>
+              Apenas praticar
+            </Button>
+            <Button variant="primary" onClick={() => void saveAndPractice()} disabled={busy}>
+              {busy ? 'Salvando…' : 'Salvar e praticar'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </>
   )
 }

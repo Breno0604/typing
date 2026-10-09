@@ -5,7 +5,6 @@ import { TypingArea } from '../components/TypingArea'
 import { ResultCard } from '../components/ResultCard'
 import { AiGeneratePanel } from '../components/AiGeneratePanel'
 import { TextsManager } from '../components/TextsManager'
-import { Dialog } from '../components/ui/Dialog'
 import { Button } from '../components/ui/controls'
 import type { GroqConfig } from '../types/domain'
 import { useUserTexts } from '../hooks/useUserTexts'
@@ -215,25 +214,20 @@ export function PracticeOverlays(props: {
         }}
       />
 
-      <Dialog
+      <AiGeneratePanel
         open={props.showAi}
         onClose={props.onCloseAi}
-        title="Gerar texto com IA (Groq)"
-        className="dialog-ai"
-      >
-        <AiGeneratePanel
-          groqConfig={props.groqConfig}
-          level="basic"
-          onLevelChange={() => {
-            /* Nível fixo no MVP. */
-          }}
-          onUseText={(entry) => {
-            props.onUseText(entry)
-            props.onCloseAi()
-          }}
-          onGroqChange={props.onGroqChange}
-        />
-      </Dialog>
+        groqConfig={props.groqConfig}
+        level="basic"
+        onLevelChange={() => {
+          /* Nível fixo no MVP. */
+        }}
+        onUseText={(entry) => {
+          props.onUseText(entry)
+          props.onCloseAi()
+        }}
+        onGroqChange={props.onGroqChange}
+      />
     </>
   )
 }

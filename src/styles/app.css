@@ -689,6 +689,48 @@ textarea {
   }
 }
 
+/* Prévia do texto gerado por IA: metadados + conteúdo rolável. */
+.ai-preview-meta {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.ai-preview-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--text-area);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  max-height: 40vh;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+
+/* Rodapé da prévia: "Voltar e ajustar" à esquerda; ações à direita. */
+.ai-footer-preview {
+  justify-content: space-between;
+}
+
+.ai-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+@media (max-width: 860px) {
+  .ai-footer-preview {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .ai-footer-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 .dialog-title {
   margin: 0 0 var(--space-5);
   font-size: var(--fs-lg);
